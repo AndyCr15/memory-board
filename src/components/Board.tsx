@@ -22,6 +22,7 @@
 
 import React, { useMemo, useRef } from 'react';
 import { MemoryCard } from './MemoryCard';
+import { apiService } from '../services/apiService';
 import type { Memory, SortMode } from '../types/memory';
 
 interface BoardProps {
@@ -158,6 +159,24 @@ export const Board: React.FC<BoardProps> = ({
     onSortChange('custom');
   };
 
+  const handleDelete = async (id: string) => {
+    const target = memories.find((m) => m.id === id);
+    const name = target?.title || 'this memory';
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    await apiService.deleteMemory(id);
+    onDelete(id);
+  };
+
+  const handlePin = async (memory: Memory) => {
+    const updated: Memory = {
+      ...memory,
+      isPinned: !memory.isPinned,
+      updatedAt: Date.now(),
+    };
+    await apiService.saveMemory(updated);
+    onPin(updated);
+  };
+
   // ---------------------------------------------------------------------------
   // Empty state
   // ---------------------------------------------------------------------------
@@ -194,8 +213,8 @@ export const Board: React.FC<BoardProps> = ({
           memory={memory}
           onView={() => onView(memory)}
           onEdit={() => onEdit(memory)}
-          onDelete={() => onDelete(memory.id)}
-          onPin={() => onPin(memory)}
+          onDelete={() => { void handleDelete(memory.id); }}
+          onPin={() => { void handlePin(memory); }}
           onDragStart={handleDragStart(memory.id)}
           onDragOver={handleDragOver(memory.id)}
           onDrop={handleDrop(memory.id)}

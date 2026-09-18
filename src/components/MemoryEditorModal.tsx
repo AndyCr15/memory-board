@@ -23,8 +23,8 @@
 //   The data-URL is embedded directly in contentHtml; no separate storage.
 //
 // Attachment data flow:
-//   File picker → validateFileSize() → read as Blob → MemoryAttachment[]
-//   Stored as separate IndexedDB records via saveMemory().
+//   File picker → apiService.uploadAttachment() (1 MB cap) → metadata on draft
+//   Save / backdrop autosave → apiService.saveMemory() → IndexedDB write-through
 // =============================================================================
 
 import React, {
@@ -46,7 +46,6 @@ import { THEME_CLASSES, COLOR_THEME_OPTIONS } from '../types/memory';
 import { DEFAULT_COLOR_THEME } from '../db/database';
 import {
   optimizeImage,
-  validateFileSize,
   blobToDataUrl,
   formatBytes,
 } from '../services/imageOptimizer';
@@ -54,6 +53,7 @@ import {
   isViableDraft,
   wrapSelectionAsCodeBlock,
 } from '../editor/editorConfig';
+import { apiService, MAX_ATTACHMENT_BYTES } from '../services/apiService';
 import { CodeBlockView } from './CodeBlock';
 import { TagInput, normalizeTag } from './TagInput';
 
@@ -252,30 +252,17 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
 
     for (const file of files) {
       try {
-        validateFileSize(file);
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          throw new Error(
+            `"${file.name}" exceeds the 1 MB attachment limit.`,
+          );
+        }
+        const uploaded = await apiService.uploadAttachment(file);
+        setAttachments((prev) => [...prev, uploaded]);
       } catch (err) {
         setError(String(err));
         return;
       }
-
-      const reader = new FileReader();
-      const blob: Blob = await new Promise((resolve, reject) => {
-        reader.onload = () => {
-          const ab = reader.result as ArrayBuffer;
-          resolve(new Blob([ab], { type: file.type }));
-        };
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(file);
-      });
-
-      const att: MemoryAttachment = {
-        id: crypto.randomUUID(),
-        name: file.name,
-        size: file.size,
-        mimeType: file.type,
-        data: blob,
-      };
-      setAttachments((prev) => [...prev, att]);
     }
   };
 
@@ -283,16 +270,26 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
     setAttachments((prev) => prev.filter((a) => a.id !== id));
 
   const downloadAttachment = (att: MemoryAttachment) => {
-    const blob =
-      att.data instanceof Blob
-        ? att.data
-        : new Blob([att.data], { type: att.mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = att.name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    if (att.data) {
+      const blob =
+        att.data instanceof Blob
+          ? att.data
+          : new Blob([att.data], { type: att.mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = att.name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      return;
+    }
+
+    if (att.storedFilename) {
+      const a = document.createElement('a');
+      a.href = `/api/uploads/${encodeURIComponent(att.storedFilename)}`;
+      a.download = att.name;
+      a.click();
+    }
   };
 
   // ---- Draft collection / save --------------------------------------------
@@ -341,6 +338,7 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
     setError(null);
     setIsSaving(true);
     try {
+      await apiService.saveMemory(draft);
       await onSave(draft);
       return true;
     } catch (err) {

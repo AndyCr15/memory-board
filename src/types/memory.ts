@@ -8,9 +8,13 @@ export interface MemoryAttachment {
   name: string;
   size: number;
   mimeType: string;
-  /** Raw binary data. Stored as Blob in IndexedDB; may arrive as ArrayBuffer
-   *  from ZIP import before being normalised. */
-  data: Blob | ArrayBuffer;
+  /**
+   * Raw binary data when the file is held locally (IndexedDB / ZIP import).
+   * Omitted for attachments uploaded to the server (`storedFilename` is set).
+   */
+  data?: Blob | ArrayBuffer;
+  /** Server-side filename under /api/uploads/ after a successful upload. */
+  storedFilename?: string;
 }
 
 /** The six pastel colour themes available for a memory card. */

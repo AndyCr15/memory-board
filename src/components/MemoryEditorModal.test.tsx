@@ -7,6 +7,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryEditorModal } from './MemoryEditorModal';
 import { isViableDraft } from '../editor/editorConfig';
 
+vi.mock('../services/apiService', () => ({
+  MAX_ATTACHMENT_BYTES: 1_048_576,
+  apiService: {
+    saveMemory: vi.fn().mockResolvedValue(undefined),
+    uploadAttachment: vi.fn(),
+  },
+}));
+
 describe('isViableDraft', () => {
   it('accepts a non-empty title', () => {
     expect(isViableDraft('Hello', '', 0)).toBe(true);

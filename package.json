@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:selfhosted": "tsc && vite build --mode selfhosted",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -38,6 +39,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.2.0",
     "autoprefixer": "^10.4.17",
+    "bcryptjs": "^3.0.3",
     "jsdom": "^30.1.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",

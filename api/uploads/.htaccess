@@ -1,0 +1,9 @@
+# Disable script execution engines inside uploads
+php_flag engine off
+SetHandler default-handler
+Options -ExecCGI -Indexes
+
+# Prevent execution of any scripts masquerading as other types
+<FilesMatch "\.(php|php[0-9]|phtml|pl|py|cgi|sh|bash)$">
+    Require all denied
+</FilesMatch>

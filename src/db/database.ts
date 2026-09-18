@@ -106,10 +106,14 @@ export const saveMemory = async (memory: Memory): Promise<void> => {
     // Replace all attachments for this memory
     await db.attachments.where('memoryId').equals(memory.id).delete();
     for (const att of attachments) {
-      const blob =
-        att.data instanceof Blob
-          ? att.data
-          : new Blob([att.data], { type: att.mimeType });
+      let blob: Blob;
+      if (att.data instanceof Blob) {
+        blob = att.data;
+      } else if (att.data) {
+        blob = new Blob([att.data], { type: att.mimeType });
+      } else {
+        blob = new Blob([], { type: att.mimeType || 'application/octet-stream' });
+      }
 
       const record: AttachmentRecord = {
         id: att.id,
@@ -117,6 +121,7 @@ export const saveMemory = async (memory: Memory): Promise<void> => {
         name: att.name,
         size: att.size,
         mimeType: att.mimeType,
+        storedFilename: att.storedFilename,
         data: blob,
       };
       await db.attachments.put(record);
@@ -156,6 +161,30 @@ export const clearAllData = async (): Promise<void> => {
     await db.memories.clear();
     await db.attachments.clear();
   });
+};
+
+/**
+ * Clears both tables then writes `memories` in full (API read-through cache).
+ */
+export const replaceAllMemories = async (memories: Memory[]): Promise<void> => {
+  await clearAllData();
+  for (const memory of memories) {
+    await saveMemory(memory);
+  }
+};
+
+/** Alias used by apiService's write-through cache. */
+export const putMemory = saveMemory;
+
+/**
+ * Facade consumed by `apiService` so the client can swap the IndexedDB
+ * implementation without changing call sites.
+ */
+export const database = {
+  getAllMemories,
+  putMemory,
+  deleteMemory,
+  replaceAllMemories,
 };
 
 /** Utility – reconstructs a full Memory object given a MemoryRecord + attachments. */

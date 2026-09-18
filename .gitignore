@@ -1,5 +1,21 @@
+# Dependencies & Build Output
 node_modules/
 dist/
+dist-ssr/
+*.local
+
+# Environment & Credentials
 .env
 .env.*
+api/config.php
+
+# Operating System & IDE Artifacts
 .DS_Store
+Thumbs.db
+.cursor/
+.vscode/
+
+# Server Uploads Cache (keep structure, exclude uploaded files)
+api/uploads/*
+!api/uploads/.htaccess
+!api/uploads/.gitkeep

@@ -1,0 +1,12 @@
+# Disable directory listing
+Options -Indexes
+
+# Security Headers
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "DENY"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+# Deny direct HTTP access to configuration and credentials
+<FilesMatch "^(config\.php|\.env)">
+    Require all denied
+</FilesMatch>

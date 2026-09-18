@@ -80,10 +80,13 @@ export const exportBackup = async (): Promise<void> => {
       const blob =
         att.data instanceof Blob
           ? att.data
-          : new Blob([att.data], { type: att.mimeType });
+          : att.data
+            ? new Blob([att.data], { type: att.mimeType })
+            : null;
 
-      // Use the attachment ID as the file name so there are no collisions
-      attachmentsFolder.file(att.id, blob);
+      if (blob && blob.size > 0) {
+        attachmentsFolder.file(att.id, blob);
+      }
 
       attachmentMetas.push({
         id: att.id,

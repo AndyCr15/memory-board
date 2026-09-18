@@ -2,7 +2,7 @@
 // Memory Board – Root Application Component
 //
 // State ownership:
-//   memories[]     – the single source of truth, hydrated from IndexedDB on mount.
+//   memories[]     – hydrated from the PHP API via apiService, with IndexedDB fallback.
 //   detailMemory   – the memory shown in the read-only MemoryDetailModal (null = hidden).
 //   editorOpen     – whether the MemoryEditorModal is visible.
 //   editingMemory  – the memory being edited (null = create new).
@@ -23,12 +23,8 @@ import { Board, filterMemories, sortMemories } from './components/Board';
 import { FilterBar } from './components/FilterBar';
 import { MemoryEditorModal } from './components/MemoryEditorModal';
 import { MemoryDetailModal } from './components/MemoryDetailModal';
-import {
-  getAllMemories,
-  saveMemory,
-  deleteMemory,
-  updateMemoryOrder,
-} from './db/database';
+import { updateMemoryOrder } from './db/database';
+import { apiService } from './services/apiService';
 import { exportBackup, importBackup } from './services/exportImportService';
 import type { Memory, SortMode } from './types/memory';
 
@@ -55,7 +51,7 @@ const App: React.FC = () => {
   const loadMemories = useCallback(async () => {
     try {
       setIsLoading(true);
-      const loaded = await getAllMemories();
+      const loaded = await apiService.getMemories();
       setMemories(loaded);
     } catch (err) {
       setGlobalError(`Failed to load memories: ${String(err)}`);
@@ -71,9 +67,9 @@ const App: React.FC = () => {
   // ---- CRUD handlers ------------------------------------------------------
 
   const handleSaveMemory = useCallback(
-    async (memory: Memory) => {
-      await saveMemory(memory);
-      // Reload from DB so orderIndex and timestamps are canonical
+    async (_memory: Memory) => {
+      // Editor already persisted via apiService.saveMemory(); refresh from
+      // the API (or IndexedDB fallback) so the board matches the server.
       await loadMemories();
       setEditorOpen(false);
       setEditingMemory(null);
@@ -81,27 +77,13 @@ const App: React.FC = () => {
     [loadMemories],
   );
 
-  const handleDeleteMemory = useCallback(async (id: string) => {
-    const target = memories.find((m) => m.id === id);
-    const name = target?.title || 'this memory';
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  const handleDeleteMemory = useCallback((id: string) => {
+    setMemories((prev) => prev.filter((m) => m.id !== id));
+    setDetailMemory((current) => (current?.id === id ? null : current));
+  }, []);
 
-    try {
-      await deleteMemory(id);
-      setMemories((prev) => prev.filter((m) => m.id !== id));
-    } catch (err) {
-      setGlobalError(`Delete failed: ${String(err)}`);
-    }
-  }, [memories]);
-
-  const handlePinToggle = useCallback(async (memory: Memory) => {
-    const updated: Memory = { ...memory, isPinned: !memory.isPinned, updatedAt: Date.now() };
-    try {
-      await saveMemory(updated);
-      setMemories((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-    } catch (err) {
-      setGlobalError(`Could not update pin: ${String(err)}`);
-    }
+  const handlePinToggle = useCallback((updated: Memory) => {
+    setMemories((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
   }, []);
 
   const handleReorder = useCallback(async (reordered: Memory[]) => {
@@ -115,6 +97,7 @@ const App: React.FC = () => {
     setSortMode('custom');
 
     try {
+      await Promise.all(withIndex.map((m) => apiService.saveMemory(m)));
       await updateMemoryOrder(withIndex.map((m) => ({ id: m.id, orderIndex: m.orderIndex })));
     } catch (err) {
       setGlobalError(`Reorder failed: ${String(err)}`);

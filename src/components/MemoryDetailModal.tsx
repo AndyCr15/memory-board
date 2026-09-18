@@ -221,20 +221,32 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
    * The URL is tracked in objectUrlsRef and revoked when the modal unmounts.
    */
   const handleDownload = useCallback((att: MemoryAttachment) => {
-    const blob =
-      att.data instanceof Blob
-        ? att.data
-        : new Blob([att.data], { type: att.mimeType });
+    if (att.data) {
+      const blob =
+        att.data instanceof Blob
+          ? att.data
+          : new Blob([att.data], { type: att.mimeType });
 
-    const url = URL.createObjectURL(blob);
-    objectUrlsRef.current.push(url); // Will be revoked on unmount
+      const url = URL.createObjectURL(blob);
+      objectUrlsRef.current.push(url);
 
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = att.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = att.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
+    if (att.storedFilename) {
+      const a = document.createElement('a');
+      a.href = `/api/uploads/${encodeURIComponent(att.storedFilename)}`;
+      a.download = att.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   }, []);
 
   // --------------------------------------------------------------------------
