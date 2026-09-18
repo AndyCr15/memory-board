@@ -1,0 +1,308 @@
+// =============================================================================
+// Memory Board – Root Application Component
+//
+// State ownership:
+//   memories[]     – the single source of truth, hydrated from IndexedDB on mount.
+//   detailMemory   – the memory shown in the read-only MemoryDetailModal (null = hidden).
+//   editorOpen     – whether the MemoryEditorModal is visible.
+//   editingMemory  – the memory being edited (null = create new).
+//   sortMode       – board sort order; switches to 'custom' after a drag-reorder.
+//   searchQuery    – full-text search string.
+//   activeTagFilters – multi-select tag filter array.
+//
+// Modal transitions:
+//   Card click → detailMemory = memory     (open detail view)
+//   Detail "Edit" → detailMemory = null,   (close detail, open editor)
+//                   editorOpen = true
+//   Detail "×" / Esc → detailMemory = null (close detail)
+//   Editor save/close → editorOpen = false (close editor)
+// =============================================================================
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Board, filterMemories, sortMemories } from './components/Board';
+import { FilterBar } from './components/FilterBar';
+import { MemoryEditorModal } from './components/MemoryEditorModal';
+import { MemoryDetailModal } from './components/MemoryDetailModal';
+import {
+  getAllMemories,
+  saveMemory,
+  deleteMemory,
+  updateMemoryOrder,
+} from './db/database';
+import { exportBackup, importBackup } from './services/exportImportService';
+import type { Memory, SortMode } from './types/memory';
+
+const App: React.FC = () => {
+  // ---- Core state ---------------------------------------------------------
+  const [memories, setMemories] = useState<Memory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [globalError, setGlobalError] = useState<string | null>(null);
+
+  // ---- Detail modal state -------------------------------------------------
+  const [detailMemory, setDetailMemory] = useState<Memory | null>(null);
+
+  // ---- Editor modal state -------------------------------------------------
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
+
+  // ---- Board state --------------------------------------------------------
+  const [sortMode, setSortMode] = useState<SortMode>('custom');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTagFilters, setActiveTagFilters] = useState<string[]>([]);
+
+  // ---- Load from IndexedDB ------------------------------------------------
+
+  const loadMemories = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const loaded = await getAllMemories();
+      setMemories(loaded);
+    } catch (err) {
+      setGlobalError(`Failed to load memories: ${String(err)}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadMemories();
+  }, [loadMemories]);
+
+  // ---- CRUD handlers ------------------------------------------------------
+
+  const handleSaveMemory = useCallback(
+    async (memory: Memory) => {
+      await saveMemory(memory);
+      // Reload from DB so orderIndex and timestamps are canonical
+      await loadMemories();
+      setEditorOpen(false);
+      setEditingMemory(null);
+    },
+    [loadMemories],
+  );
+
+  const handleDeleteMemory = useCallback(async (id: string) => {
+    const target = memories.find((m) => m.id === id);
+    const name = target?.title || 'this memory';
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+
+    try {
+      await deleteMemory(id);
+      setMemories((prev) => prev.filter((m) => m.id !== id));
+    } catch (err) {
+      setGlobalError(`Delete failed: ${String(err)}`);
+    }
+  }, [memories]);
+
+  const handlePinToggle = useCallback(async (memory: Memory) => {
+    const updated: Memory = { ...memory, isPinned: !memory.isPinned, updatedAt: Date.now() };
+    try {
+      await saveMemory(updated);
+      setMemories((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+    } catch (err) {
+      setGlobalError(`Could not update pin: ${String(err)}`);
+    }
+  }, []);
+
+  const handleReorder = useCallback(async (reordered: Memory[]) => {
+    // Assign sequential orderIndex values from the new array order
+    const withIndex = reordered.map((m, i) => ({ ...m, orderIndex: i }));
+    setMemories((prev) => {
+      // Merge: re-indexed cards + any cards not in the reordered set (filtered out)
+      const map = new Map(withIndex.map((m) => [m.id, m]));
+      return prev.map((m) => map.get(m.id) ?? m);
+    });
+    setSortMode('custom');
+
+    try {
+      await updateMemoryOrder(withIndex.map((m) => ({ id: m.id, orderIndex: m.orderIndex })));
+    } catch (err) {
+      setGlobalError(`Reorder failed: ${String(err)}`);
+    }
+  }, []);
+
+  // ---- Detail modal helpers -----------------------------------------------
+
+  /** Opens the read-only detail view for a card click. */
+  const handleViewMemory = useCallback((memory: Memory) => {
+    setDetailMemory(memory);
+  }, []);
+
+  /** Called by MemoryDetailModal's 'close' event → clears detailMemory. */
+  const handleDetailClose = useCallback(() => {
+    setDetailMemory(null);
+  }, []);
+
+  /**
+   * Called when the user clicks "Edit" inside MemoryDetailModal.
+   * The detail modal closes itself (via dialog.close() → close event → handleDetailClose),
+   * so here we only need to open the editor.  React 18 batches both state
+   * changes into a single render cycle.
+   */
+  const handleEditFromDetail = useCallback((memory: Memory) => {
+    setEditorOpen(true);
+    setEditingMemory(memory);
+  }, []);
+
+  // ---- Editor helpers -----------------------------------------------------
+
+  const openEditorFor = (memory?: Memory) => {
+    setEditingMemory(memory ?? null);
+    setEditorOpen(true);
+  };
+
+  // ---- Export / Import ----------------------------------------------------
+
+  const handleExport = async () => {
+    try {
+      setGlobalError(null);
+      await exportBackup();
+    } catch (err) {
+      setGlobalError(`Export failed: ${String(err)}`);
+    }
+  };
+
+  const handleImport = async (file: File) => {
+    try {
+      setGlobalError(null);
+      const { count } = await importBackup(file);
+      await loadMemories();
+      window.alert(`✅ Restored ${count} ${count === 1 ? 'memory' : 'memories'} successfully.`);
+    } catch (err) {
+      setGlobalError(`Import failed: ${String(err)}`);
+    }
+  };
+
+  // ---- Derived values -----------------------------------------------------
+
+  /** Unique sorted list of all tags across all memories. */
+  const allTags = useMemo(
+    () => Array.from(new Set(memories.flatMap((m) => m.tags))).sort(),
+    [memories],
+  );
+
+  /** Count of cards currently visible after filters (for the FilterBar). */
+  const filteredCount = useMemo(() => {
+    const sorted = sortMemories(memories, sortMode);
+    return filterMemories(sorted, searchQuery, activeTagFilters).length;
+  }, [memories, sortMode, searchQuery, activeTagFilters]);
+
+  // ---- Render -------------------------------------------------------------
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50/30">
+      {/* ------------------------------------------------------------------ */}
+      {/* Header                                                              */}
+      {/* ------------------------------------------------------------------ */}
+      <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+          {/* Logotype */}
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🧠</span>
+            <span className="text-xl font-bold tracking-tight text-gray-800">
+              Memory Board
+            </span>
+          </div>
+
+          {/* Memory count badge */}
+          <span className="text-xs text-gray-400 font-medium hidden sm:block">
+            {memories.length} {memories.length === 1 ? 'memory' : 'memories'}
+          </span>
+
+          {/* New memory button */}
+          <button
+            onClick={() => openEditorFor()}
+            className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm text-sm"
+          >
+            <span className="text-base leading-none">+</span>
+            New Memory
+          </button>
+        </div>
+      </header>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Main content                                                        */}
+      {/* ------------------------------------------------------------------ */}
+      <main className="max-w-7xl mx-auto px-6 py-6">
+        {/* Global error banner */}
+        {globalError && (
+          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-center gap-3">
+            <span className="text-base">⚠️</span>
+            <span className="flex-1">{globalError}</span>
+            <button
+              onClick={() => setGlobalError(null)}
+              className="text-red-400 hover:text-red-600"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {/* Filter controls */}
+        <FilterBar
+          sortMode={sortMode}
+          onSortChange={setSortMode}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          allTags={allTags}
+          activeTagFilters={activeTagFilters}
+          onTagFilterChange={setActiveTagFilters}
+          onExport={handleExport}
+          onImport={handleImport}
+          totalCount={memories.length}
+          filteredCount={filteredCount}
+        />
+
+        {/* Board grid */}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-400">
+            <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
+            <p className="text-sm">Loading memories…</p>
+          </div>
+        ) : (
+          <Board
+            memories={memories}
+            sortMode={sortMode}
+            searchQuery={searchQuery}
+            activeTagFilters={activeTagFilters}
+            onView={handleViewMemory}
+            onEdit={openEditorFor}
+            onDelete={handleDeleteMemory}
+            onPin={handlePinToggle}
+            onReorder={handleReorder}
+            onSortChange={setSortMode}
+          />
+        )}
+      </main>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Detail modal – read-only inspection view                            */}
+      {/* ------------------------------------------------------------------ */}
+      {detailMemory && (
+        <MemoryDetailModal
+          memory={detailMemory}
+          onClose={handleDetailClose}
+          onEdit={handleEditFromDetail}
+        />
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Editor modal – create / update                                      */}
+      {/* ------------------------------------------------------------------ */}
+      {editorOpen && (
+        <MemoryEditorModal
+          memory={editingMemory}
+          nextOrderIndex={memories.length}
+          existingTags={allTags}
+          onSave={handleSaveMemory}
+          onClose={() => {
+            setEditorOpen(false);
+            setEditingMemory(null);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+export default App;

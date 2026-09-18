@@ -1,0 +1,174 @@
+/* =============================================================================
+   Memory Board – Global Styles
+   Tailwind base + custom overrides for TipTap and syntax highlighting.
+   ============================================================================= */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   TipTap ProseMirror editor shell
+   --------------------------------------------------------------------------- */
+.ProseMirror {
+  outline: none;
+  min-height: 220px;
+  line-height: 1.7;
+}
+
+/* Placeholder text (via @tiptap/extension-placeholder) */
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: #9ca3af;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Rich-text content typography (editor + card read-view)
+   --------------------------------------------------------------------------- */
+.tiptap-content h1,
+.ProseMirror h1 { @apply text-2xl font-bold mt-4 mb-2 text-gray-900; }
+
+.tiptap-content h2,
+.ProseMirror h2 { @apply text-xl font-bold mt-3 mb-2 text-gray-800; }
+
+.tiptap-content h3,
+.ProseMirror h3 { @apply text-lg font-semibold mt-3 mb-1 text-gray-800; }
+
+.tiptap-content p,
+.ProseMirror p { @apply mb-2 text-gray-700; }
+
+.tiptap-content strong,
+.ProseMirror strong { @apply font-semibold text-gray-900; }
+
+.tiptap-content em,
+.ProseMirror em { @apply italic; }
+
+.tiptap-content ul,
+.ProseMirror ul { @apply list-disc pl-6 mb-2 space-y-1; }
+
+.tiptap-content ol,
+.ProseMirror ol { @apply list-decimal pl-6 mb-2 space-y-1; }
+
+.tiptap-content blockquote,
+.ProseMirror blockquote {
+  @apply border-l-4 border-gray-300 pl-4 italic text-gray-500 my-3;
+}
+
+/* Fenced code blocks (detail modal injected HTML + editor prose view) */
+.tiptap-content pre,
+.ProseMirror pre {
+  @apply bg-gray-900 text-gray-100 rounded-xl p-4 overflow-x-auto text-sm leading-relaxed my-4;
+  position: relative; /* anchor the injected copy button */
+}
+
+.tiptap-content pre code,
+.ProseMirror pre code {
+  @apply font-mono;
+  background: none !important;
+  color: inherit !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Inline code */
+.tiptap-content code,
+.ProseMirror code:not(pre code) {
+  @apply bg-gray-100 text-rose-600 font-mono text-sm px-1.5 py-0.5 rounded;
+}
+
+/* Inline images */
+.tiptap-content img,
+.ProseMirror img {
+  @apply max-w-full rounded-xl my-3 shadow-sm;
+}
+
+/* ---------------------------------------------------------------------------
+   Syntax-highlighting token colours (GitHub Dark palette, lowlight classes)
+   --------------------------------------------------------------------------- */
+.hljs-comment,
+.hljs-quote        { color: #8b949e; font-style: italic; }
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal      { color: #ff7b72; }
+
+.hljs-string,
+.hljs-doctag       { color: #a5d6ff; }
+
+.hljs-number,
+.hljs-regexp,
+.hljs-variable,
+.hljs-template-variable { color: #79c0ff; }
+
+.hljs-section,
+.hljs-name,
+.hljs-title,
+.hljs-selector-id,
+.hljs-selector-class { color: #d2a8ff; }
+
+.hljs-type,
+.hljs-class        { color: #ffa657; }
+
+.hljs-attribute,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition     { color: #7ee787; }
+
+.hljs-deletion     { color: #f85149; }
+
+.hljs-built_in     { color: #ffa657; }
+
+.hljs-tag          { color: #7ee787; }
+
+.hljs-attr         { color: #79c0ff; }
+
+.hljs-meta         { color: #8b949e; }
+
+.hljs-emphasis     { font-style: italic; }
+.hljs-strong       { font-weight: bold; }
+
+/* ---------------------------------------------------------------------------
+   Native <dialog> element – MemoryDetailModal
+   --------------------------------------------------------------------------- */
+
+/*
+ * Reset UA defaults (border, padding) and set our desired layout.
+ * The .memory-detail-dialog class is applied directly in MemoryDetailModal.tsx.
+ * Using display:flex + flex-direction:column on the dialog element itself
+ * allows header / scrollable body / footer to divide the constrained height.
+ */
+.memory-detail-dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 48rem;      /* Tailwind max-w-3xl */
+  max-height: 85vh;
+  padding: 0;
+  border: none;
+  background: transparent;
+  overflow: hidden;
+  /* Border-radius is applied on the inner content div */
+}
+
+/* Backdrop: darkened blur overlay rendered by showModal() */
+.memory-detail-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* ---------------------------------------------------------------------------
+   Scrollbar aesthetics (webkit)
+   --------------------------------------------------------------------------- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-gray-300 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-gray-400; }
+
+/* ---------------------------------------------------------------------------
+   Drag-and-drop card ghost
+   --------------------------------------------------------------------------- */
+.card-dragging { @apply opacity-40 scale-95; }
