@@ -23,7 +23,7 @@ import { Board, filterMemories, sortMemories } from './components/Board';
 import { FilterBar } from './components/FilterBar';
 import { MemoryEditorModal } from './components/MemoryEditorModal';
 import { MemoryDetailModal } from './components/MemoryDetailModal';
-import { updateMemoryOrder } from './db/database';
+import { updateMemoryOrder } from './services/database';
 import { apiService } from './services/apiService';
 import { exportBackup, importBackup } from './services/exportImportService';
 import type { Memory, SortMode } from './types/memory';
@@ -45,8 +45,11 @@ const App: React.FC = () => {
   const [sortMode, setSortMode] = useState<SortMode>('custom');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTagFilters, setActiveTagFilters] = useState<string[]>([]);
+  const [sessionUsername, setSessionUsername] = useState<string | null>(
+    apiService.currentUsername,
+  );
 
-  // ---- Load from IndexedDB ------------------------------------------------
+  // ---- Load from API (IndexedDB fallback) ---------------------------------
 
   const loadMemories = useCallback(async () => {
     try {
@@ -62,6 +65,21 @@ const App: React.FC = () => {
 
   useEffect(() => {
     void loadMemories();
+  }, [loadMemories]);
+
+  useEffect(() => {
+    return apiService.subscribe(() => {
+      const name = apiService.currentUsername;
+      setSessionUsername(name);
+      if (!name) {
+        setMemories([]);
+        setDetailMemory(null);
+        setEditorOpen(false);
+        setEditingMemory(null);
+        return;
+      }
+      void loadMemories();
+    });
   }, [loadMemories]);
 
   // ---- CRUD handlers ------------------------------------------------------
@@ -192,14 +210,31 @@ const App: React.FC = () => {
             {memories.length} {memories.length === 1 ? 'memory' : 'memories'}
           </span>
 
-          {/* New memory button */}
-          <button
-            onClick={() => openEditorFor()}
-            className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm text-sm"
-          >
-            <span className="text-base leading-none">+</span>
-            New Memory
-          </button>
+          {/* Session + new memory */}
+          <div className="flex items-center gap-3">
+            {sessionUsername && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 hidden sm:inline">
+                  Signed in as <strong className="font-semibold text-gray-800">{sessionUsername}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { void apiService.logout(); }}
+                  className="text-sm font-medium text-gray-500 hover:text-gray-800 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                  aria-label={`Log out ${sessionUsername}`}
+                >
+                  Log Out
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => openEditorFor()}
+              className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm text-sm"
+            >
+              <span className="text-base leading-none">+</span>
+              New Memory
+            </button>
+          </div>
         </div>
       </header>
 

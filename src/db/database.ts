@@ -1,84 +1,40 @@
 // =============================================================================
-// Memory Board – IndexedDB Layer (Dexie.js)
+// Memory Board – Dexie schema + record helpers
 //
-// Schema:
-//   memories    – Memory metadata + rich-text content. Attachment blobs are
-//                 stored in a separate table to keep record sizes manageable.
-//   attachments – Raw file blobs linked to their parent memory by memoryId.
-//
-// Data flow:
-//   saveMemory()    → writes MemoryRecord + AttachmentRecords in one transaction
-//   getAllMemories() → joins both tables and returns hydrated Memory[]
-//   deleteMemory()  → cascades delete to attachments
+// Each tenant opens a separate IndexedDB via MemoryBoardDB(name).
+// The active handle is owned by src/services/database.ts (switchTenant).
 // =============================================================================
 
 import Dexie, { type Table } from 'dexie';
 import type { Memory, MemoryAttachment, ColorTheme } from '../types/memory';
 
-// ---------------------------------------------------------------------------
-// Internal DB record types (attachment blobs stored separately from memories)
-// ---------------------------------------------------------------------------
+export type MemoryRecord = Omit<Memory, 'attachments'>;
 
-/** Stored in the 'memories' table – no attachment blobs here. */
-type MemoryRecord = Omit<Memory, 'attachments'>;
-
-/** Stored in the 'attachments' table – blob + FK to parent memory. */
-interface AttachmentRecord extends Omit<MemoryAttachment, 'data'> {
+export interface AttachmentRecord extends Omit<MemoryAttachment, 'data'> {
   memoryId: string;
-  data: Blob; // Always normalised to Blob when stored
+  data: Blob;
 }
 
-// ---------------------------------------------------------------------------
-// Dexie database class
-// ---------------------------------------------------------------------------
+export const tenantDatabaseName = (userId: number): string =>
+  `memory_board_tenant_${userId}`;
 
-class MemoryBoardDB extends Dexie {
+export class MemoryBoardDB extends Dexie {
   memories!: Table<MemoryRecord, string>;
   attachments!: Table<AttachmentRecord, string>;
 
-  constructor() {
-    super('MemoryBoardDB');
-
-    // ── v1 – original schema ──────────────────────────────────────────────
-    // Only indexed fields are listed; Dexie stores the full object.
+  constructor(name: string) {
+    super(name);
     this.version(1).stores({
       memories: 'id, createdAt, updatedAt, isPinned, orderIndex',
       attachments: 'id, memoryId',
     });
-
-    // ── v2 – same schema, clears stale dev records ────────────────────────
-    // Memories saved with editor v1 may have contentText / contentHtml that
-    // includes "Copy" button text serialised by the old editor.getHTML() /
-    // editor.getText() code paths.  Wiping the store forces a clean slate;
-    // the user re-creates memories with the fixed serialisation path.
-    this.version(2).stores({
-      memories: 'id, createdAt, updatedAt, isPinned, orderIndex',
-      attachments: 'id, memoryId',
-    }).upgrade(async (tx) => {
-      await tx.table('memories').clear();
-      await tx.table('attachments').clear();
-    });
   }
 }
 
-/** Singleton database instance. */
-export const db = new MemoryBoardDB();
-
-// ---------------------------------------------------------------------------
-// Repository helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Returns all memories with their attachments hydrated.
- * Attachments are fetched in a single bulk query and merged by memoryId.
- */
-export const getAllMemories = async (): Promise<Memory[]> => {
-  const [records, allAttachments] = await Promise.all([
-    db.memories.toArray(),
-    db.attachments.toArray(),
-  ]);
-
-  // Group attachments by their parent memory ID
+export const hydrateMemories = (
+  records: MemoryRecord[],
+  allAttachments: AttachmentRecord[],
+): Memory[] => {
   const byMemoryId = new Map<string, MemoryAttachment[]>();
   for (const att of allAttachments) {
     const { memoryId, ...attachment } = att;
@@ -92,19 +48,21 @@ export const getAllMemories = async (): Promise<Memory[]> => {
   }));
 };
 
-/**
- * Creates or updates a memory and its attachments atomically.
- * Existing attachments for this memory are replaced entirely.
- */
-export const saveMemory = async (memory: Memory): Promise<void> => {
+export const readAllMemories = async (db: MemoryBoardDB): Promise<Memory[]> => {
+  const [records, allAttachments] = await Promise.all([
+    db.memories.toArray(),
+    db.attachments.toArray(),
+  ]);
+  return hydrateMemories(records, allAttachments);
+};
+
+export const writeMemory = async (db: MemoryBoardDB, memory: Memory): Promise<void> => {
   const { attachments, ...record } = memory;
 
   await db.transaction('rw', db.memories, db.attachments, async () => {
-    // Upsert the memory record (no blob data here)
     await db.memories.put(record as MemoryRecord);
-
-    // Replace all attachments for this memory
     await db.attachments.where('memoryId').equals(memory.id).delete();
+
     for (const att of attachments) {
       let blob: Blob;
       if (att.data instanceof Blob) {
@@ -115,7 +73,7 @@ export const saveMemory = async (memory: Memory): Promise<void> => {
         blob = new Blob([], { type: att.mimeType || 'application/octet-stream' });
       }
 
-      const record: AttachmentRecord = {
+      await db.attachments.put({
         id: att.id,
         memoryId: memory.id,
         name: att.name,
@@ -123,27 +81,20 @@ export const saveMemory = async (memory: Memory): Promise<void> => {
         mimeType: att.mimeType,
         storedFilename: att.storedFilename,
         data: blob,
-      };
-      await db.attachments.put(record);
+      });
     }
   });
 };
 
-/**
- * Deletes a memory and all its attachments by ID.
- */
-export const deleteMemory = async (id: string): Promise<void> => {
+export const removeMemory = async (db: MemoryBoardDB, id: string): Promise<void> => {
   await db.transaction('rw', db.memories, db.attachments, async () => {
     await db.memories.delete(id);
     await db.attachments.where('memoryId').equals(id).delete();
   });
 };
 
-/**
- * Bulk-updates the `orderIndex` field for a list of memories.
- * Used after a drag-and-drop reorder so the new sequence is persisted.
- */
-export const updateMemoryOrder = async (
+export const writeMemoryOrder = async (
+  db: MemoryBoardDB,
   updates: Array<{ id: string; orderIndex: number }>,
 ): Promise<void> => {
   await db.transaction('rw', db.memories, async () => {
@@ -153,48 +104,21 @@ export const updateMemoryOrder = async (
   });
 };
 
-/**
- * Clears all data from both tables (used during backup import).
- */
-export const clearAllData = async (): Promise<void> => {
+export const wipeDatabase = async (db: MemoryBoardDB): Promise<void> => {
   await db.transaction('rw', db.memories, db.attachments, async () => {
     await db.memories.clear();
     await db.attachments.clear();
   });
 };
 
-/**
- * Clears both tables then writes `memories` in full (API read-through cache).
- */
-export const replaceAllMemories = async (memories: Memory[]): Promise<void> => {
-  await clearAllData();
+export const replaceAllInDatabase = async (
+  db: MemoryBoardDB,
+  memories: Memory[],
+): Promise<void> => {
+  await wipeDatabase(db);
   for (const memory of memories) {
-    await saveMemory(memory);
+    await writeMemory(db, memory);
   }
 };
 
-/** Alias used by apiService's write-through cache. */
-export const putMemory = saveMemory;
-
-/**
- * Facade consumed by `apiService` so the client can swap the IndexedDB
- * implementation without changing call sites.
- */
-export const database = {
-  getAllMemories,
-  putMemory,
-  deleteMemory,
-  replaceAllMemories,
-};
-
-/** Utility – reconstructs a full Memory object given a MemoryRecord + attachments. */
-export const hydrateMemory = (
-  record: MemoryRecord,
-  attachments: MemoryAttachment[] = [],
-): Memory => ({
-  ...record,
-  attachments,
-});
-
-/** Default colour theme for new memories. */
 export const DEFAULT_COLOR_THEME: ColorTheme = 'pastel-yellow';

@@ -22,7 +22,7 @@
 
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { getAllMemories, saveMemory, clearAllData } from '../db/database';
+import { getAllMemories, saveMemory, clearAllData } from './database';
 import type { Memory, MemoryAttachment } from '../types/memory';
 
 // ---------------------------------------------------------------------------

@@ -20,8 +20,7 @@ const mount = () => {
 };
 
 /**
- * Bootstrap: confirm the PHP session before the first board fetch.
- * Unauthenticated sessions open LoginModal; offline sessions skip the prompt
- * so IndexedDB can still render a cached board.
+ * Bootstrap: hydrate the PHP session and attach the tenant IndexedDB
+ * partition *before* React mounts (App then calls getMemories()).
  */
 void apiService.ensureAuthenticated().finally(mount);

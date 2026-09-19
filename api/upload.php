@@ -1,17 +1,11 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/db.php';
 
-session_start();
 header('Content-Type: application/json; charset=UTF-8');
 
-// Reject unauthenticated requests
-if (empty($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
-}
+requireAuthenticatedUserId();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

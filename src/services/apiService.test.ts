@@ -1,18 +1,21 @@
 // =============================================================================
-// apiService – upload size guard + IndexedDB fallback
+// apiService – upload size guard, IndexedDB fallback, auth + tenant attach
 // =============================================================================
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiService, MAX_ATTACHMENT_BYTES } from './apiService';
-import { database } from '../db/database';
+import { database } from './database';
+import { loginModal } from '../components/LoginModal';
 import type { Memory } from '../types/memory';
 
-vi.mock('../db/database', () => ({
+vi.mock('./database', () => ({
   database: {
     getAllMemories: vi.fn(),
     replaceAllMemories: vi.fn(),
     putMemory: vi.fn(),
     deleteMemory: vi.fn(),
+    clearLocalData: vi.fn(),
+    switchTenant: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -36,6 +39,12 @@ const cachedMemory: Memory = {
   updatedAt: 1,
 };
 
+const jsonResponse = (body: unknown, status = 200) => ({
+  ok: status >= 200 && status < 300,
+  status,
+  json: async () => body,
+});
+
 describe('apiService.uploadAttachment', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -56,17 +65,13 @@ describe('apiService.uploadAttachment', () => {
   });
 
   it('dispatches the upload when the file is within the 1 MB cap', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        id: 'att-1',
-        name: 'notes.txt',
-        size: 12,
-        mimeType: 'text/plain',
-        storedFilename: 'abc.txt',
-      }),
-    });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      id: 'att-1',
+      name: 'notes.txt',
+      size: 12,
+      mimeType: 'text/plain',
+      storedFilename: 'abc.txt',
+    }));
     vi.stubGlobal('fetch', fetchMock);
 
     const file = new File(['hello world'], 'notes.txt', { type: 'text/plain' });
@@ -103,14 +108,7 @@ describe('apiService.getMemories', () => {
 
   it('hydrates the IndexedDB cache when the server responds successfully', async () => {
     const remote = [{ ...cachedMemory, id: 'remote-1', title: 'Remote' }];
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => remote,
-      }),
-    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(remote)));
     vi.mocked(database.replaceAllMemories).mockResolvedValue(undefined);
 
     const result = await apiService.getMemories();
@@ -118,5 +116,96 @@ describe('apiService.getMemories', () => {
     expect(database.replaceAllMemories).toHaveBeenCalledWith(remote);
     expect(database.getAllMemories).not.toHaveBeenCalled();
     expect(result[0].title).toBe('Remote');
+  });
+});
+
+describe('apiService.register / login / logout / bootstrap', () => {
+  beforeEach(() => {
+    vi.mocked(database.switchTenant).mockResolvedValue(undefined);
+    vi.mocked(database.clearLocalData).mockResolvedValue(undefined);
+    vi.mocked(loginModal.prompt).mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it('register() submits the honeypot field on the auth payload', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      success: true,
+      username: 'alice',
+      userId: 7,
+    }, 201));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiService.register({
+      username: 'alice',
+      password: 'secret123',
+      website: 'https://spam.example',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/auth.php');
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(init.body))).toEqual({
+      action: 'register',
+      username: 'alice',
+      password: 'secret123',
+      website: 'https://spam.example',
+    });
+    expect(database.switchTenant).toHaveBeenCalledWith(7);
+    expect(database.clearLocalData).not.toHaveBeenCalled();
+    expect(apiService.currentUsername).toBe('alice');
+    expect(apiService.currentUserId).toBe(7);
+  });
+
+  it('login() attaches the tenant partition without wiping it', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      success: true,
+      username: 'bob',
+      userId: 3,
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiService.login({ username: 'bob', password: 'hunter2xx' });
+
+    expect(database.switchTenant).toHaveBeenCalledWith(3);
+    expect(database.clearLocalData).not.toHaveBeenCalled();
+    expect(apiService.currentUsername).toBe('bob');
+  });
+
+  it('ensureAuthenticated() switches tenant from a restored session before getMemories', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      authenticated: true,
+      username: 'alice',
+      userId: 11,
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiService.ensureAuthenticated();
+
+    expect(database.switchTenant).toHaveBeenCalledWith(11);
+    expect(database.switchTenant).toHaveBeenCalledTimes(1);
+    expect(database.clearLocalData).not.toHaveBeenCalled();
+    expect(apiService.currentUserId).toBe(11);
+  });
+
+  it('logout() posts { action: "logout" }, detaches storage, and blocks unauthenticated reads', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiService.logout();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/auth.php');
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(String(init.body))).toEqual({ action: 'logout' });
+    expect(database.switchTenant).toHaveBeenCalledWith(null);
+    expect(database.clearLocalData).not.toHaveBeenCalled();
+    expect(loginModal.prompt).toHaveBeenCalledTimes(1);
+    expect(apiService.currentUsername).toBeNull();
+    expect(apiService.currentUserId).toBeNull();
   });
 });
