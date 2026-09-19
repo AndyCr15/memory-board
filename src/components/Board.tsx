@@ -206,7 +206,13 @@ export const Board: React.FC<BoardProps> = ({
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    <div
+      className="grid w-full"
+      style={{
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+        gap: '1.25rem',
+      }}
+    >
       {filtered.map((memory) => (
         <MemoryCard
           key={memory.id}

@@ -4,7 +4,7 @@
 // Sticky controls bar rendered above the board grid. Contains:
 //   • Full-text search input (real-time)
 //   • Sort-mode dropdown (delegates switch to 'custom' automatically after drag)
-//   • Export / Import buttons (wired to exportImportService)
+//   • Export / Import buttons (JSON backup, merge into current tenant)
 //   • Tag filter chip cloud (multi-select; all chips active = no filter)
 // =============================================================================
 
@@ -105,7 +105,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <button
           onClick={onExport}
           className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white hover:bg-gray-50 shadow-sm transition"
-          title="Export all memories as a ZIP backup"
+          title="Export this account's memories as JSON"
         >
           ⬇ Export
         </button>
@@ -114,14 +114,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <button
           onClick={() => importInputRef.current?.click()}
           className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white hover:bg-gray-50 shadow-sm transition"
-          title="Restore memories from a ZIP backup (replaces current data)"
+          title="Merge memories from a JSON backup into this account"
         >
           ⬆ Import
         </button>
         <input
           ref={importInputRef}
           type="file"
-          accept=".zip"
+          accept=".json,application/json"
           onChange={handleImportFileChange}
           className="hidden"
         />

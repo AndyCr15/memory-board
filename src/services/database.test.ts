@@ -2,7 +2,7 @@
 // Tenant-partitioned IndexedDB – isolation & guest stub
 // =============================================================================
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import Dexie from 'dexie';
 import { database } from './database';
 import { tenantDatabaseName } from '../db/database';
@@ -74,5 +74,28 @@ describe('database.switchTenant', () => {
     await database.switchTenant(1);
     const stillThere = await database.getAllMemories();
     expect(stillThere.map((m) => m.id)).toEqual(['hidden']);
+  });
+});
+
+describe('database.putMemoriesBulk', () => {
+  afterEach(async () => {
+    await database.switchTenant(null);
+    await Dexie.delete(tenantDatabaseName(1));
+  });
+
+  it('writes multiple entries in a single IndexedDB transaction', async () => {
+    await database.switchTenant(1);
+
+    const spy = vi.spyOn(IDBDatabase.prototype, 'transaction');
+    await expect(
+      database.putMemoriesBulk([memory('bulk-b', 'Beta'), memory('bulk-a', 'Alpha')]),
+    ).resolves.toBeUndefined();
+
+    const readwriteCalls = spy.mock.calls.filter(([, mode]) => mode === 'readwrite');
+    expect(readwriteCalls.length).toBe(1);
+
+    const stored = await database.getAllMemories();
+    expect(stored.map((m) => m.id).sort()).toEqual(['bulk-a', 'bulk-b']);
+    spy.mockRestore();
   });
 });

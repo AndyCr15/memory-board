@@ -164,6 +164,7 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
   );
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPinned, setIsPinned] = useState(memory?.isPinned ?? false);
 
   // Refs
   const imageFileInputRef = useRef<HTMLInputElement>(null);
@@ -325,7 +326,7 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
         contentText,
         tags: finalTags,
         colorTheme,
-        isPinned: memory?.isPinned ?? false,
+        isPinned,
         orderIndex: memory?.orderIndex ?? nextOrderIndex,
         attachments,
         createdAt: memory?.createdAt ?? now,
@@ -391,280 +392,276 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
     /* Backdrop */
     <div
       data-testid="editor-backdrop"
-      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-start justify-center overflow-y-auto py-8 px-4"
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center px-3"
       onClick={handleBackdropClick}
     >
       {/* Modal panel */}
-      <div className={`
-        w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col overflow-hidden
-        border-2 ${theme.card.split(' ').find(c => c.startsWith('border-')) ?? 'border-gray-200'}
-        bg-white
-      `}>
+      <div
+        className={`
+          shadow-2xl flex flex-col overflow-hidden bg-white
+          border-2 ${theme.card.split(' ').find(c => c.startsWith('border-')) ?? 'border-gray-200'}
+        `}
+        style={{
+          width: 'min(94vw, 1200px)',
+          height: '88vh',
+          borderRadius: 12,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
 
         {/* ================================================================
-            Header – title input + close
+            Sticky chrome – title, pin, save/close + formatting toolbar
             ================================================================ */}
-        <div className={`flex items-center gap-3 px-5 py-4 border-b border-gray-100 ${theme.accent}`}>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Memory title…"
-            autoFocus
-            className="flex-1 text-lg font-semibold bg-transparent text-gray-800 placeholder-gray-400 focus:outline-none"
-          />
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 text-2xl leading-none transition-colors"
-            title="Close (Esc)"
-          >
-            ×
-          </button>
-        </div>
-
-        {/* ================================================================
-            Toolbar
-            ================================================================ */}
-        <div className="flex flex-wrap items-center gap-0.5 px-4 py-2 border-b border-gray-100 bg-gray-50">
-          <ToolbarButton
-            onClick={() => editor?.chain().focus().toggleBold().run()}
-            active={editor?.isActive('bold')}
-            title="Bold (Ctrl+B)"
-          >
-            <strong>B</strong>
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor?.chain().focus().toggleItalic().run()}
-            active={editor?.isActive('italic')}
-            title="Italic (Ctrl+I)"
-          >
-            <em>I</em>
-          </ToolbarButton>
-
-          <div className="w-px h-5 bg-gray-200 mx-1" />
-
-          <ToolbarButton
-            onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-            active={editor?.isActive('heading', { level: 1 })}
-            title="Heading 1"
-          >
-            H1
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-            active={editor?.isActive('heading', { level: 2 })}
-            title="Heading 2"
-          >
-            H2
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
-            active={editor?.isActive('heading', { level: 3 })}
-            title="Heading 3"
-          >
-            H3
-          </ToolbarButton>
-
-          <div className="w-px h-5 bg-gray-200 mx-1" />
-
-          <ToolbarButton
-            onClick={() => editor?.chain().focus().toggleBulletList().run()}
-            active={editor?.isActive('bulletList')}
-            title="Bullet list"
-          >
-            • List
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-            active={editor?.isActive('orderedList')}
-            title="Ordered list"
-          >
-            1. List
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-            active={editor?.isActive('blockquote')}
-            title="Blockquote"
-          >
-            ❝
-          </ToolbarButton>
-
-          <div className="w-px h-5 bg-gray-200 mx-1" />
-
-          <ToolbarButton
-            onClick={() => editor && wrapSelectionAsCodeBlock(editor)}
-            active={editor?.isActive('codeBlock')}
-            title="Code block (Ctrl+Alt+C) — wraps the whole selection"
-          >
-            &lt;/&gt;
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor?.chain().focus().toggleCode().run()}
-            active={editor?.isActive('code')}
-            title="Inline code"
-          >
-            `code`
-          </ToolbarButton>
-
-          <div className="w-px h-5 bg-gray-200 mx-1" />
-
-          {/* Image picker button */}
-          <ToolbarButton
-            onClick={() => imageFileInputRef.current?.click()}
-            title="Insert image"
-          >
-            🖼
-          </ToolbarButton>
-          <input
-            ref={imageFileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              e.target.value = '';
-              if (file) await insertImageRef.current?.(file);
-            }}
-          />
-        </div>
-
-        {/* ================================================================
-            Editor body (scrollable)
-            ================================================================ */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="px-5 py-4">
-            <EditorContent editor={editor} />
-          </div>
-        </div>
-
-        {/* ================================================================
-            Metadata section
-            ================================================================ */}
-        <div className="border-t border-gray-100 px-5 py-4 space-y-4 bg-gray-50/50">
-
-          {/* ---- Colour theme picker ------------------------------------- */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Card colour
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {COLOR_THEME_OPTIONS.map((t) => {
-                const cls = THEME_CLASSES[t];
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setColorTheme(t)}
-                    title={cls.label}
-                    className={`
-                      w-8 h-8 rounded-full border-2 transition-all
-                      ${cls.dot}
-                      ${colorTheme === t
-                        ? 'border-gray-600 scale-125 shadow-md'
-                        : 'border-transparent hover:scale-110'
-                      }
-                    `}
-                  />
-                );
-              })}
-              <span className="self-center text-xs text-gray-500 ml-1">
-                {THEME_CLASSES[colorTheme].label}
-              </span>
-            </div>
-          </div>
-
-          <TagInput
-            tags={tags}
-            inputValue={tagInput}
-            onInputChange={setTagInput}
-            existingTags={existingTags}
-            onAddTag={addTag}
-            onRemoveTag={removeTag}
-          />
-
-          {/* ---- Auxiliary attachments ----------------------------------- */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Attachments <span className="font-normal normal-case">(max 1 MB per file)</span>
-            </p>
-
-            {attachments.length > 0 && (
-              <ul className="space-y-1.5 mb-3">
-                {attachments.map((att) => (
-                  <li
-                    key={att.id}
-                    className="flex items-center gap-2 text-sm bg-white border border-gray-200 rounded-lg px-3 py-2"
-                  >
-                    <span className="text-base">📄</span>
-                    <span className="flex-1 truncate text-gray-700">{att.name}</span>
-                    <span className="text-xs text-gray-400 shrink-0">{formatBytes(att.size)}</span>
-                    <button
-                      type="button"
-                      onClick={() => downloadAttachment(att)}
-                      className="text-indigo-500 hover:text-indigo-700 text-xs px-1"
-                      title="Download attachment"
-                    >
-                      ⬇
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeAttachment(att.id)}
-                      className="text-red-400 hover:text-red-600 text-xs px-1"
-                      title="Remove attachment"
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
+        <div className="sticky top-0 z-20 border-b border-gray-200 bg-white">
+          <div className={`flex items-center gap-3 px-5 py-3 ${theme.accent}`}>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Memory title…"
+              autoFocus
+              className="flex-1 text-lg font-semibold bg-transparent text-gray-800 placeholder-gray-400 focus:outline-none"
+            />
             <button
               type="button"
-              onClick={() => attachmentFileInputRef.current?.click()}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+              onClick={() => setIsPinned((prev) => !prev)}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                isPinned
+                  ? 'bg-yellow-100 border-yellow-300 text-yellow-800'
+                  : 'bg-white/70 border-gray-200 text-gray-600 hover:bg-white'
+              }`}
+              title={isPinned ? 'Unpin memory' : 'Pin memory'}
             >
-              📎 Attach file…
+              📌 {isPinned ? 'Pinned' : 'Pin'}
             </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="px-4 py-1.5 text-sm font-semibold bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300 text-white rounded-lg shadow-sm transition-colors"
+            >
+              {isSaving ? 'Saving…' : '💾 Save Memory'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-700 text-2xl leading-none transition-colors"
+              title="Close (Esc)"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-0.5 px-4 py-2 bg-gray-50">
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleBold().run()}
+              active={editor?.isActive('bold')}
+              title="Bold (Ctrl+B)"
+            >
+              <strong>B</strong>
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleItalic().run()}
+              active={editor?.isActive('italic')}
+              title="Italic (Ctrl+I)"
+            >
+              <em>I</em>
+            </ToolbarButton>
+
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
+              active={editor?.isActive('heading', { level: 1 })}
+              title="Heading 1"
+            >
+              H1
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+              active={editor?.isActive('heading', { level: 2 })}
+              title="Heading 2"
+            >
+              H2
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
+              active={editor?.isActive('heading', { level: 3 })}
+              title="Heading 3"
+            >
+              H3
+            </ToolbarButton>
+
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleBulletList().run()}
+              active={editor?.isActive('bulletList')}
+              title="Bullet list"
+            >
+              • List
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+              active={editor?.isActive('orderedList')}
+              title="Ordered list"
+            >
+              1. List
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+              active={editor?.isActive('blockquote')}
+              title="Blockquote"
+            >
+              ❝
+            </ToolbarButton>
+
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+
+            <ToolbarButton
+              onClick={() => editor && wrapSelectionAsCodeBlock(editor)}
+              active={editor?.isActive('codeBlock')}
+              title="Code block (Ctrl+Alt+C) — wraps the whole selection"
+            >
+              &lt;/&gt;
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleCode().run()}
+              active={editor?.isActive('code')}
+              title="Inline code"
+            >
+              `code`
+            </ToolbarButton>
+
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+
+            <ToolbarButton
+              onClick={() => imageFileInputRef.current?.click()}
+              title="Insert image"
+            >
+              🖼
+            </ToolbarButton>
             <input
-              ref={attachmentFileInputRef}
+              ref={imageFileInputRef}
               type="file"
-              multiple
+              accept="image/*"
               className="hidden"
-              onChange={handleAttachmentPick}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) await insertImageRef.current?.(file);
+              }}
             />
           </div>
         </div>
 
         {/* ================================================================
-            Error banner
+            Editor body (scrollable)
             ================================================================ */}
-        {error && (
-          <div className="mx-5 mb-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-start gap-2">
-            <span>⚠️</span>
-            <span>{error}</span>
-          </div>
-        )}
+        <div className="flex-1 overflow-y-auto p-6 min-h-0">
+          <EditorContent editor={editor} />
 
-        {/* ================================================================
-            Footer – actions
-            ================================================================ */}
-        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-100 bg-white">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="px-5 py-2 text-sm font-semibold bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300 text-white rounded-lg shadow-sm transition-colors"
-          >
-            {isSaving ? 'Saving…' : '💾 Save Memory'}
-          </button>
+          <div className="mt-8 pt-6 border-t border-gray-100 space-y-4">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                Card colour
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {COLOR_THEME_OPTIONS.map((t) => {
+                  const cls = THEME_CLASSES[t];
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setColorTheme(t)}
+                      title={cls.label}
+                      className={`
+                        w-8 h-8 rounded-full border-2 transition-all
+                        ${cls.dot}
+                        ${colorTheme === t
+                          ? 'border-gray-600 scale-125 shadow-md'
+                          : 'border-transparent hover:scale-110'
+                        }
+                      `}
+                    />
+                  );
+                })}
+                <span className="self-center text-xs text-gray-500 ml-1">
+                  {THEME_CLASSES[colorTheme].label}
+                </span>
+              </div>
+            </div>
+
+            <TagInput
+              tags={tags}
+              inputValue={tagInput}
+              onInputChange={setTagInput}
+              existingTags={existingTags}
+              onAddTag={addTag}
+              onRemoveTag={removeTag}
+            />
+
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                Attachments <span className="font-normal normal-case">(max 1 MB per file)</span>
+              </p>
+
+              {attachments.length > 0 && (
+                <ul className="space-y-1.5 mb-3">
+                  {attachments.map((att) => (
+                    <li
+                      key={att.id}
+                      className="flex items-center gap-2 text-sm bg-white border border-gray-200 rounded-lg px-3 py-2"
+                    >
+                      <span className="text-base">📄</span>
+                      <span className="flex-1 truncate text-gray-700">{att.name}</span>
+                      <span className="text-xs text-gray-400 shrink-0">{formatBytes(att.size)}</span>
+                      <button
+                        type="button"
+                        onClick={() => downloadAttachment(att)}
+                        className="text-indigo-500 hover:text-indigo-700 text-xs px-1"
+                        title="Download attachment"
+                      >
+                        ⬇
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(att.id)}
+                        className="text-red-400 hover:text-red-600 text-xs px-1"
+                        title="Remove attachment"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <button
+                type="button"
+                onClick={() => attachmentFileInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+              >
+                📎 Attach file…
+              </button>
+              <input
+                ref={attachmentFileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleAttachmentPick}
+              />
+            </div>
+
+            {error && (
+              <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-start gap-2">
+                <span>⚠️</span>
+                <span>{error}</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

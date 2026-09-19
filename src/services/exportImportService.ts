@@ -1,190 +1,183 @@
 // =============================================================================
-// Memory Board – Export / Import Service
+// Memory Board – Tenant-safe JSON export / import (schema version 2)
 //
-// Export (ZIP):
-//   manifest.json          – version header + serialised memory records.
-//                            Inline editor images remain embedded as data-URLs
-//                            in contentHtml; only auxiliary attachments are
-//                            written as separate binary files.
-//   attachments/<id>       – raw attachment blobs, keyed by attachment ID.
+// Export reads the active IndexedDB partition, strips tenant metadata
+// (`userId`), and downloads a JSON document.
 //
-// Import (ZIP):
-//   1. Load and validate manifest.json.
-//   2. Read each attachment blob from attachments/<id>.
-//   3. Clear existing IndexedDB data.
-//   4. Restore every memory + attachment into IndexedDB.
-//   5. Return the count of restored memories for the success toast.
-//
-// Data flow:
-//   IndexedDB → getAllMemories() → JSZip → FileSaver  (export)
-//   File       → JSZip.loadAsync → clearAllData + saveMemory  (import)
+// Import merges into the current account: each record gets a new UUID,
+// foreign userId is discarded, then importBatch + putMemoriesBulk persist
+// the merge in one server transaction and one IndexedDB transaction.
 // =============================================================================
 
-import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { getAllMemories, saveMemory, clearAllData } from './database';
-import type { Memory, MemoryAttachment } from '../types/memory';
+import { database } from './database';
+import { apiService } from './apiService';
+import type { ColorTheme, Memory, MemoryAttachment } from '../types/memory';
+import { COLOR_THEME_OPTIONS } from '../types/memory';
 
-// ---------------------------------------------------------------------------
-// Manifest schema
-// ---------------------------------------------------------------------------
+export const EXPORT_VERSION = 2 as const;
 
-const MANIFEST_FILENAME = 'manifest.json';
-const ATTACHMENTS_FOLDER = 'attachments/';
-const EXPORT_VERSION = 1;
-
-/** Attachment metadata stored in the manifest (blob is a separate ZIP entry). */
-interface AttachmentMeta {
+export interface ExportedAttachment {
   id: string;
   name: string;
   size: number;
   mimeType: string;
+  storedFilename?: string;
 }
 
-/** Per-memory record in the manifest. */
-interface ManifestMemory extends Omit<Memory, 'attachments'> {
-  attachments: AttachmentMeta[];
+export interface ExportedMemory {
+  id: string;
+  title: string;
+  contentHtml: string;
+  contentText: string;
+  tags: string[];
+  attachments: ExportedAttachment[];
+  colorTheme: ColorTheme;
+  isPinned: boolean;
+  orderIndex: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
-/** Root manifest structure. */
-interface ExportManifest {
+export interface ExportDocument {
   version: typeof EXPORT_VERSION;
   exportedAt: number;
-  memories: ManifestMemory[];
+  memories: ExportedMemory[];
 }
 
-// ---------------------------------------------------------------------------
-// Export
-// ---------------------------------------------------------------------------
+const isColorTheme = (value: unknown): value is ColorTheme =>
+  typeof value === 'string' && (COLOR_THEME_OPTIONS as string[]).includes(value);
 
-/**
- * Serialises all IndexedDB data into a ZIP archive and triggers a browser
- * download via FileSaver.
- *
- * The archive contains:
- *   manifest.json        – memory records (attachments field = metadata only)
- *   attachments/<id>     – one binary file per auxiliary attachment
- */
-export const exportBackup = async (): Promise<void> => {
-  const memories = await getAllMemories();
-
-  const zip = new JSZip();
-  const attachmentsFolder = zip.folder(ATTACHMENTS_FOLDER)!;
-  const manifestMemories: ManifestMemory[] = [];
-
-  for (const memory of memories) {
-    const attachmentMetas: AttachmentMeta[] = [];
-
-    for (const att of memory.attachments) {
-      // Normalise to Blob before writing to ZIP
-      const blob =
-        att.data instanceof Blob
-          ? att.data
-          : att.data
-            ? new Blob([att.data], { type: att.mimeType })
-            : null;
-
-      if (blob && blob.size > 0) {
-        attachmentsFolder.file(att.id, blob);
-      }
-
-      attachmentMetas.push({
-        id: att.id,
-        name: att.name,
-        size: att.size,
-        mimeType: att.mimeType,
-      });
-    }
-
-    const { attachments: _unused, ...rest } = memory;
-    manifestMemories.push({ ...rest, attachments: attachmentMetas });
-  }
-
-  const manifest: ExportManifest = {
-    version: EXPORT_VERSION,
-    exportedAt: Date.now(),
-    memories: manifestMemories,
+const sanitiseAttachment = (raw: unknown): ExportedAttachment | null => {
+  if (!raw || typeof raw !== 'object') return null;
+  const att = raw as Record<string, unknown>;
+  if (typeof att.name !== 'string') return null;
+  return {
+    id: typeof att.id === 'string' ? att.id : crypto.randomUUID(),
+    name: att.name,
+    size: typeof att.size === 'number' ? att.size : 0,
+    mimeType: typeof att.mimeType === 'string' ? att.mimeType : 'application/octet-stream',
+    ...(typeof att.storedFilename === 'string' ? { storedFilename: att.storedFilename } : {}),
   };
-
-  zip.file(MANIFEST_FILENAME, JSON.stringify(manifest, null, 2));
-
-  const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
-  const filename = `memory-board-${new Date().toISOString().slice(0, 10)}.zip`;
-  saveAs(zipBlob, filename);
 };
 
-// ---------------------------------------------------------------------------
-// Import
-// ---------------------------------------------------------------------------
+/**
+ * Projects a live Memory (or untrusted import row) onto the public export
+ * shape.  `userId` and attachment blobs are never copied.
+ */
+export const sanitiseMemoryForExport = (raw: Memory | Record<string, unknown>): ExportedMemory => {
+  const record = raw as Record<string, unknown>;
+  const attachments = Array.isArray(record.attachments)
+    ? record.attachments.map(sanitiseAttachment).filter((a): a is ExportedAttachment => a !== null)
+    : [];
+
+  return {
+    id: typeof record.id === 'string' ? record.id : crypto.randomUUID(),
+    title: typeof record.title === 'string' ? record.title : 'Untitled',
+    contentHtml: typeof record.contentHtml === 'string' ? record.contentHtml : '',
+    contentText: typeof record.contentText === 'string' ? record.contentText : '',
+    tags: Array.isArray(record.tags)
+      ? record.tags.filter((t): t is string => typeof t === 'string')
+      : [],
+    attachments,
+    colorTheme: isColorTheme(record.colorTheme) ? record.colorTheme : 'pastel-yellow',
+    isPinned: Boolean(record.isPinned),
+    orderIndex: typeof record.orderIndex === 'number' ? record.orderIndex : 0,
+    createdAt: typeof record.createdAt === 'number' ? record.createdAt : Date.now(),
+    updatedAt: typeof record.updatedAt === 'number' ? record.updatedAt : Date.now(),
+  };
+};
+
+export const buildExportDocument = (
+  memories: Array<Memory | Record<string, unknown>>,
+  exportedAt = Date.now(),
+): ExportDocument => ({
+  version: EXPORT_VERSION,
+  exportedAt,
+  memories: memories.map(sanitiseMemoryForExport),
+});
 
 /**
- * Restores memories from a backup ZIP file.
- *
- * @throws Error if the ZIP is invalid, the manifest is missing or the version
- *               is unrecognised.
- * @returns The number of memories successfully restored.
+ * Re-keys an imported row for merge into the current tenant.
+ * Always allocates a new id and drops any foreign userId.
+ */
+export const prepareImportedMemory = (
+  raw: unknown,
+  now = Date.now(),
+): Memory => {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Invalid memory record in backup.');
+  }
+
+  const exported = sanitiseMemoryForExport(raw as Record<string, unknown>);
+  const attachments: MemoryAttachment[] = exported.attachments.map((att) => ({
+    id: crypto.randomUUID(),
+    name: att.name,
+    size: att.size,
+    mimeType: att.mimeType,
+    storedFilename: att.storedFilename,
+  }));
+
+  return {
+    id: crypto.randomUUID(),
+    title: exported.title,
+    contentHtml: exported.contentHtml,
+    contentText: exported.contentText,
+    tags: exported.tags,
+    attachments,
+    colorTheme: exported.colorTheme,
+    isPinned: exported.isPinned,
+    orderIndex: exported.orderIndex,
+    createdAt: exported.createdAt,
+    updatedAt: now,
+  };
+};
+
+export const parseImportDocument = (text: string): ExportDocument => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('The selected file is not valid JSON.');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Invalid backup: expected a JSON object.');
+  }
+
+  const doc = parsed as Record<string, unknown>;
+  if (!Array.isArray(doc.memories)) {
+    throw new Error('Invalid backup: missing "memories" array.');
+  }
+
+  return {
+    version: EXPORT_VERSION,
+    exportedAt: typeof doc.exportedAt === 'number' ? doc.exportedAt : Date.now(),
+    memories: doc.memories.map((row) => sanitiseMemoryForExport(row as Record<string, unknown>)),
+  };
+};
+
+export const exportBackup = async (): Promise<void> => {
+  const memories = await database.getMemories();
+  const document = buildExportDocument(memories);
+  const json = JSON.stringify(document, null, 2);
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+  const filename = `memory-board-${new Date().toISOString().slice(0, 10)}.json`;
+  saveAs(blob, filename);
+};
+
+/**
+ * Merges memories from a JSON backup into the signed-in tenant.
+ * Records receive new UUIDs; userId is never copied.
  */
 export const importBackup = async (file: File): Promise<{ count: number }> => {
-  // 1 – Parse the ZIP
-  let zip: JSZip;
-  try {
-    zip = await JSZip.loadAsync(file);
-  } catch {
-    throw new Error('The selected file is not a valid ZIP archive.');
-  }
+  const text = await file.text();
+  const document = parseImportDocument(text);
+  const now = Date.now();
+  const imported = document.memories.map((row) => prepareImportedMemory(row, now));
 
-  // 2 – Read manifest
-  const manifestFile = zip.file(MANIFEST_FILENAME);
-  if (!manifestFile) {
-    throw new Error(`Invalid backup: "${MANIFEST_FILENAME}" not found in archive.`);
-  }
+  await apiService.importBatch(imported);
+  await database.putMemoriesBulk(imported);
 
-  let manifest: ExportManifest;
-  try {
-    const text = await manifestFile.async('text');
-    manifest = JSON.parse(text) as ExportManifest;
-  } catch {
-    throw new Error('Could not parse manifest.json – file may be corrupted.');
-  }
-
-  if (manifest.version !== EXPORT_VERSION) {
-    throw new Error(
-      `Unsupported backup version "${manifest.version}". Expected ${EXPORT_VERSION}.`,
-    );
-  }
-
-  // 3 – Clear existing data (full replacement import)
-  await clearAllData();
-
-  // 4 – Restore memories
-  let count = 0;
-  for (const raw of manifest.memories) {
-    const attachments: MemoryAttachment[] = [];
-
-    // Restore each auxiliary attachment blob from the ZIP
-    for (const meta of raw.attachments) {
-      const entry = zip.file(`${ATTACHMENTS_FOLDER}${meta.id}`);
-      if (!entry) {
-        console.warn(`Attachment "${meta.id}" (${meta.name}) not found in ZIP – skipped.`);
-        continue;
-      }
-
-      const arrayBuffer = await entry.async('arraybuffer');
-      const blob = new Blob([arrayBuffer], { type: meta.mimeType });
-
-      attachments.push({
-        id: meta.id,
-        name: meta.name,
-        size: meta.size,
-        mimeType: meta.mimeType,
-        data: blob,
-      });
-    }
-
-    const memory: Memory = { ...raw, attachments };
-    await saveMemory(memory);
-    count++;
-  }
-
-  return { count };
+  return { count: imported.length };
 };

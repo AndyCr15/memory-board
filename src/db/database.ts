@@ -56,32 +56,49 @@ export const readAllMemories = async (db: MemoryBoardDB): Promise<Memory[]> => {
   return hydrateMemories(records, allAttachments);
 };
 
-export const writeMemory = async (db: MemoryBoardDB, memory: Memory): Promise<void> => {
+export const upsertMemoryRecords = async (
+  db: MemoryBoardDB,
+  memory: Memory,
+): Promise<void> => {
   const { attachments, ...record } = memory;
+  await db.memories.put(record as MemoryRecord);
+  await db.attachments.where('memoryId').equals(memory.id).delete();
 
+  for (const att of attachments) {
+    let blob: Blob;
+    if (att.data instanceof Blob) {
+      blob = att.data;
+    } else if (att.data) {
+      blob = new Blob([att.data], { type: att.mimeType });
+    } else {
+      blob = new Blob([], { type: att.mimeType || 'application/octet-stream' });
+    }
+
+    await db.attachments.put({
+      id: att.id,
+      memoryId: memory.id,
+      name: att.name,
+      size: att.size,
+      mimeType: att.mimeType,
+      storedFilename: att.storedFilename,
+      data: blob,
+    });
+  }
+};
+
+export const writeMemory = async (db: MemoryBoardDB, memory: Memory): Promise<void> => {
   await db.transaction('rw', db.memories, db.attachments, async () => {
-    await db.memories.put(record as MemoryRecord);
-    await db.attachments.where('memoryId').equals(memory.id).delete();
+    await upsertMemoryRecords(db, memory);
+  });
+};
 
-    for (const att of attachments) {
-      let blob: Blob;
-      if (att.data instanceof Blob) {
-        blob = att.data;
-      } else if (att.data) {
-        blob = new Blob([att.data], { type: att.mimeType });
-      } else {
-        blob = new Blob([], { type: att.mimeType || 'application/octet-stream' });
-      }
-
-      await db.attachments.put({
-        id: att.id,
-        memoryId: memory.id,
-        name: att.name,
-        size: att.size,
-        mimeType: att.mimeType,
-        storedFilename: att.storedFilename,
-        data: blob,
-      });
+export const writeMemoriesBulk = async (
+  db: MemoryBoardDB,
+  memories: Memory[],
+): Promise<void> => {
+  await db.transaction('rw', db.memories, db.attachments, async () => {
+    for (const memory of memories) {
+      await upsertMemoryRecords(db, memory);
     }
   });
 };

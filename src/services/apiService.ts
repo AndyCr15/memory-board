@@ -34,11 +34,14 @@ export class AuthApiError extends Error {
   }
 }
 
-/** Strip Blob/ArrayBuffer fields so JSON.stringify stays small and valid. */
-const toApiPayload = (memory: Memory): unknown => ({
-  ...memory,
-  attachments: memory.attachments.map(({ data: _data, ...meta }) => meta),
-});
+/** Strip Blob/ArrayBuffer fields and tenant keys so JSON.stringify stays valid. */
+const toApiPayload = (memory: Memory): unknown => {
+  const { userId: _userId, ...rest } = memory as Memory & { userId?: unknown };
+  return {
+    ...rest,
+    attachments: rest.attachments.map(({ data: _data, ...meta }) => meta),
+  };
+};
 
 class ApiService {
   private username: string | null = null;
@@ -271,6 +274,23 @@ class ApiService {
       console.warn('Unable to sync save to server; persisting locally only', err);
     } finally {
       await database.putMemory(memory);
+    }
+  }
+
+  /**
+   * Atomic restore: one POST of the full sanitised payload.
+   * Local cache is updated separately via database.putMemoriesBulk().
+   */
+  public async importBatch(memories: Memory[]): Promise<void> {
+    const sanitised = memories.map((memory) => toApiPayload(memory));
+    const res = await this.fetchWithAuth('/api/memories.php?action=batch', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ memories: sanitised }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to import memories: ${res.status}`);
     }
   }
 

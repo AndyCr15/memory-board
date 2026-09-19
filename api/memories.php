@@ -15,7 +15,12 @@ switch ($method) {
         break;
     case 'POST':
     case 'PUT':
-        handleUpsertMemory($pdo, $userId);
+        $action = (string) ($_GET['action'] ?? '');
+        if ($action === 'batch') {
+            handleBatchImport($pdo, $userId);
+        } else {
+            handleUpsertMemory($pdo, $userId);
+        }
         break;
     case 'DELETE':
         handleDeleteMemory($pdo, $userId);
@@ -178,4 +183,80 @@ function handleDeleteMemory(PDO $pdo, int $userId): void {
     $deleteStmt->execute();
 
     echo json_encode(['success' => true]);
+}
+
+function handleBatchImport(PDO $pdo, int $userId): void {
+    $raw = file_get_contents('php://input');
+    $payload = json_decode(is_string($raw) ? $raw : '', true);
+
+    if (!is_array($payload) || !array_key_exists('memories', $payload) || !is_array($payload['memories'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Malformed input: memories array required']);
+        exit;
+    }
+
+    /** @var list<array<string, mixed>> $memories */
+    $memories = [];
+    foreach ($payload['memories'] as $row) {
+        if (is_array($row)) {
+            $memories[] = $row;
+        }
+    }
+
+    usort(
+        $memories,
+        static fn (array $a, array $b): int => strcmp((string) ($a['id'] ?? ''), (string) ($b['id'] ?? ''))
+    );
+
+    $sql = "
+        INSERT INTO memories (id, userId, title, contentHtml, contentText, tags, attachments, colorTheme, isPinned, orderIndex, createdAt, updatedAt)
+        VALUES (:id, :userId, :title, :contentHtml, :contentText, :tags, :attachments, :colorTheme, :isPinned, :orderIndex, :createdAt, :updatedAt)
+        ON DUPLICATE KEY UPDATE
+            title = VALUES(title),
+            contentHtml = VALUES(contentHtml),
+            contentText = VALUES(contentText),
+            tags = VALUES(tags),
+            attachments = VALUES(attachments),
+            colorTheme = VALUES(colorTheme),
+            isPinned = VALUES(isPinned),
+            orderIndex = VALUES(orderIndex),
+            updatedAt = VALUES(updatedAt)
+    ";
+
+    try {
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare($sql);
+
+        foreach ($memories as $memory) {
+            $id = (string) ($memory['id'] ?? '');
+            if ($id === '') {
+                throw new InvalidArgumentException('Memory id is required');
+            }
+
+            $now = (int) round(microtime(true) * 1000);
+            $stmt->execute([
+                ':id'          => $id,
+                ':userId'      => $userId,
+                ':title'       => (string) ($memory['title'] ?? ''),
+                ':contentHtml' => (string) ($memory['contentHtml'] ?? ''),
+                ':contentText' => (string) ($memory['contentText'] ?? ''),
+                ':tags'        => json_encode($memory['tags'] ?? []) ?: '[]',
+                ':attachments' => json_encode($memory['attachments'] ?? []) ?: '[]',
+                ':colorTheme'  => (string) ($memory['colorTheme'] ?? 'pastel-yellow'),
+                ':isPinned'    => !empty($memory['isPinned']) ? 1 : 0,
+                ':orderIndex'  => (int) ($memory['orderIndex'] ?? 0),
+                ':createdAt'   => (int) ($memory['createdAt'] ?? $now),
+                ':updatedAt'   => (int) ($memory['updatedAt'] ?? $now),
+            ]);
+        }
+
+        $pdo->commit();
+        echo json_encode(['success' => true, 'count' => count($memories)]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        http_response_code(500);
+        echo json_encode(['error' => 'Batch transaction failed']);
+    }
 }

@@ -13,6 +13,7 @@ vi.mock('./database', () => ({
     getAllMemories: vi.fn(),
     replaceAllMemories: vi.fn(),
     putMemory: vi.fn(),
+    putMemoriesBulk: vi.fn(),
     deleteMemory: vi.fn(),
     clearLocalData: vi.fn(),
     switchTenant: vi.fn().mockResolvedValue(undefined),
@@ -207,5 +208,41 @@ describe('apiService.register / login / logout / bootstrap', () => {
     expect(loginModal.prompt).toHaveBeenCalledTimes(1);
     expect(apiService.currentUsername).toBeNull();
     expect(apiService.currentUserId).toBeNull();
+  });
+});
+
+describe('apiService.importBatch', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it('posts the unified memories payload to the batch endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, count: 2 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const batch: Memory[] = [
+      { ...cachedMemory, id: 'm-2', title: 'Second' },
+      { ...cachedMemory, id: 'm-1', title: 'First', attachments: [{
+        id: 'a1',
+        name: 'note.txt',
+        size: 4,
+        mimeType: 'text/plain',
+        data: new Blob(['hi']),
+      }] },
+    ];
+
+    await apiService.importBatch(batch);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/memories.php?action=batch');
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(String(init.body)) as { memories: Array<Record<string, unknown>> };
+    expect(body.memories).toHaveLength(2);
+    expect(body.memories.map((m) => m.id)).toEqual(['m-2', 'm-1']);
+    expect(body.memories[1]).not.toHaveProperty('userId');
+    expect((body.memories[1].attachments as Array<Record<string, unknown>>)[0]).not.toHaveProperty('data');
+    expect(database.putMemoriesBulk).not.toHaveBeenCalled();
   });
 });

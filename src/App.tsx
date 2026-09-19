@@ -168,7 +168,9 @@ const App: React.FC = () => {
       setGlobalError(null);
       const { count } = await importBackup(file);
       await loadMemories();
-      window.alert(`✅ Restored ${count} ${count === 1 ? 'memory' : 'memories'} successfully.`);
+      window.alert(
+        `✅ Merged ${count} ${count === 1 ? 'memory' : 'memories'} into this account.`,
+      );
     } catch (err) {
       setGlobalError(`Import failed: ${String(err)}`);
     }
@@ -196,7 +198,7 @@ const App: React.FC = () => {
       {/* Header                                                              */}
       {/* ------------------------------------------------------------------ */}
       <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+        <div className="w-full max-w-[1920px] mx-auto px-6 py-4 flex items-center justify-between gap-4">
           {/* Logotype */}
           <div className="flex items-center gap-2">
             <span className="text-2xl">🧠</span>
@@ -241,7 +243,7 @@ const App: React.FC = () => {
       {/* ------------------------------------------------------------------ */}
       {/* Main content                                                        */}
       {/* ------------------------------------------------------------------ */}
-      <main className="max-w-7xl mx-auto px-6 py-6">
+      <main className="w-full max-w-[1920px] mx-auto px-6 py-6">
         {/* Global error banner */}
         {globalError && (
           <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-center gap-3">

@@ -270,14 +270,15 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
     >
       {/* Inner container – flex column, stops click propagation to dialog */}
       <div
-        className="flex flex-col h-full overflow-hidden rounded-2xl bg-white"
+        className="flex flex-col h-full overflow-hidden bg-white"
+        style={{ borderRadius: 12 }}
         onClick={(e) => e.stopPropagation()}
       >
 
         {/* ================================================================
             Header – pastel-themed, sticky
             ================================================================ */}
-        <div className={`${theme.accent} px-6 py-4 border-b border-black/10 shrink-0`}>
+        <div className={`${theme.accent} px-6 py-4 border-b border-black/10 sticky top-0 z-20`}>
           <div className="flex items-start gap-3">
 
             {/* Title + tags + timestamps */}
@@ -334,7 +335,7 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
         {/* ================================================================
             Body – scrollable content area
             ================================================================ */}
-        <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5 bg-white">
+        <div className="flex-1 overflow-y-auto min-h-0 p-6 bg-white">
 
           {/* Rich-text content */}
           {sanitizedContent.trim() ? (

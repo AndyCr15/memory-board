@@ -143,14 +143,13 @@
 .memory-detail-dialog {
   display: flex;
   flex-direction: column;
-  width: 100%;
-  max-width: 48rem;      /* Tailwind max-w-3xl */
-  max-height: 85vh;
+  width: min(94vw, 1200px);
+  height: 88vh;
   padding: 0;
   border: none;
   background: transparent;
   overflow: hidden;
-  /* Border-radius is applied on the inner content div */
+  border-radius: 12px;
 }
 
 /* Backdrop: darkened blur overlay rendered by showModal() */

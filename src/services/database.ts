@@ -16,6 +16,7 @@ import {
   writeMemoryOrder,
   wipeDatabase,
   replaceAllInDatabase,
+  writeMemoriesBulk,
   tenantDatabaseName,
   DEFAULT_COLOR_THEME,
 } from '../db/database';
@@ -62,6 +63,11 @@ class TenantDatabase {
     return readAllMemories(this.active);
   }
 
+  /** Alias used by export/import (`database.getMemories()`). */
+  async getMemories(): Promise<Memory[]> {
+    return this.getAllMemories();
+  }
+
   async putMemory(memory: Memory): Promise<void> {
     if (!this.active) return;
     await writeMemory(this.active, memory);
@@ -82,6 +88,15 @@ class TenantDatabase {
   async replaceAllMemories(memories: Memory[]): Promise<void> {
     if (!this.active) return;
     await replaceAllInDatabase(this.active, memories);
+  }
+
+  /**
+   * Write many memories in one IndexedDB readwrite transaction on the
+   * active tenant partition.
+   */
+  async putMemoriesBulk(memories: Memory[]): Promise<void> {
+    if (!this.active) return;
+    await writeMemoriesBulk(this.active, memories);
   }
 
   /**
@@ -109,4 +124,6 @@ export const updateMemoryOrder = (
 ): Promise<void> => database.updateMemoryOrder(updates);
 export const replaceAllMemories = (memories: Memory[]): Promise<void> =>
   database.replaceAllMemories(memories);
+export const putMemoriesBulk = (memories: Memory[]): Promise<void> =>
+  database.putMemoriesBulk(memories);
 export const clearAllData = clearLocalData;
