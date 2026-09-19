@@ -14,7 +14,7 @@ const memory = (id: string, title: string): Memory => ({
   contentHtml: `<p>${title}</p>`,
   contentText: title,
   tags: [],
-  colorTheme: 'pastel-yellow',
+  colorTheme: 'note-paper',
   isPinned: false,
   orderIndex: 0,
   attachments: [],

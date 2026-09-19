@@ -67,7 +67,7 @@ function initializeDatabaseSchema(PDO $pdo): void {
             contentText LONGTEXT NOT NULL,
             tags JSON NOT NULL,
             attachments JSON NOT NULL,
-            colorTheme VARCHAR(32) NOT NULL DEFAULT 'pastel-yellow',
+            colorTheme VARCHAR(32) NOT NULL DEFAULT 'note-paper',
             isPinned TINYINT(1) DEFAULT 0,
             orderIndex INT DEFAULT 0,
             createdAt BIGINT NOT NULL,

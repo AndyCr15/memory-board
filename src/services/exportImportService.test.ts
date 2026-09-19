@@ -29,7 +29,7 @@ const sample = (overrides: Partial<Memory> & { userId?: number } = {}): Memory &
   contentHtml: '<p>Hello</p>',
   contentText: 'Hello',
   tags: ['tenant'],
-  colorTheme: 'pastel-blue',
+  colorTheme: 'blueprint',
   isPinned: false,
   orderIndex: 2,
   attachments: [],
@@ -111,5 +111,24 @@ describe('import persistence through the active tenant partition', () => {
     expect(restored).toHaveLength(1);
     expect(restored[0].title).toBe('Merged in');
     expect(restored[0].id).toBe(saved.id);
+  });
+
+  it('skips exact duplicates and does not call importBatch when every row matches', async () => {
+    await database.switchTenant(9);
+    const existing = sample({ id: 'already-here', updatedAt: 50 });
+    await database.putMemory(existing);
+
+    const payload = buildExportDocument([
+      sample({ id: 'from-backup', updatedAt: 9_999, title: existing.title }),
+    ]);
+    const file = new File([JSON.stringify(payload)], 'backup.json', {
+      type: 'application/json',
+    });
+
+    const { count, skippedCount } = await importBackup(file);
+    expect(count).toBe(0);
+    expect(skippedCount).toBe(1);
+    expect(apiService.importBatch).not.toHaveBeenCalled();
+    expect(await database.getMemories()).toHaveLength(1);
   });
 });

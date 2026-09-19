@@ -3,6 +3,8 @@
    Tailwind base + custom overrides for TipTap and syntax highlighting.
    ============================================================================= */
 
+@import './themes.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

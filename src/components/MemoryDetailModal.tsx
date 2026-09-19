@@ -37,7 +37,7 @@ import React, {
   useRef,
 } from 'react';
 import type { Memory, MemoryAttachment } from '../types/memory';
-import { THEME_CLASSES } from '../types/memory';
+import { THEME_CLASSES, resolveMemoryTheme } from '../types/memory';
 import { sanitizeHtml } from '../services/sanitizer';
 import { formatBytes } from '../services/imageOptimizer';
 
@@ -253,7 +253,7 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
   // Render
   // --------------------------------------------------------------------------
 
-  const theme = THEME_CLASSES[memory.colorTheme];
+  const theme = THEME_CLASSES[resolveMemoryTheme(memory.colorTheme)];
 
   return (
     /*
@@ -270,7 +270,8 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
     >
       {/* Inner container – flex column, stops click propagation to dialog */}
       <div
-        className="flex flex-col h-full overflow-hidden bg-white"
+        data-theme={resolveMemoryTheme(memory.colorTheme)}
+        className="memory-card flex flex-col h-full overflow-hidden"
         style={{ borderRadius: 12 }}
         onClick={(e) => e.stopPropagation()}
       >

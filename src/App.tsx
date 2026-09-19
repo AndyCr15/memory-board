@@ -166,10 +166,10 @@ const App: React.FC = () => {
   const handleImport = async (file: File) => {
     try {
       setGlobalError(null);
-      const { count } = await importBackup(file);
+      const { count, skippedCount } = await importBackup(file);
       await loadMemories();
       window.alert(
-        `✅ Merged ${count} ${count === 1 ? 'memory' : 'memories'} into this account.`,
+        `Import finished: ${count} added, ${skippedCount} identical duplicates skipped`,
       );
     } catch (err) {
       setGlobalError(`Import failed: ${String(err)}`);

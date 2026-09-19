@@ -17,14 +17,18 @@ export interface MemoryAttachment {
   storedFilename?: string;
 }
 
-/** The six pastel colour themes available for a memory card. */
-export type ColorTheme =
-  | 'pastel-pink'
-  | 'pastel-blue'
-  | 'pastel-green'
-  | 'pastel-yellow'
-  | 'pastel-purple'
-  | 'pastel-peach';
+/** Visual motif applied to a memory card. */
+export type MemoryTheme =
+  | 'note-paper'
+  | 'thought-bubble'
+  | 'blueprint'
+  | 'terminal';
+
+/**
+ * Historical alias.  Stored `colorTheme` values may still be a MemoryTheme
+ * or a legacy pastel-* string — use `resolveMemoryTheme()` at read time.
+ */
+export type ColorTheme = MemoryTheme;
 
 /** Sort modes for the board grid. */
 export type SortMode =
@@ -55,8 +59,41 @@ export interface Memory {
   updatedAt: number;
 }
 
+export const MEMORY_THEME_OPTIONS: MemoryTheme[] = [
+  'note-paper',
+  'thought-bubble',
+  'blueprint',
+  'terminal',
+];
+
+/** Ordered list of colour themes for UI iteration. */
+export const COLOR_THEME_OPTIONS: MemoryTheme[] = MEMORY_THEME_OPTIONS;
+
+const LEGACY_PASTEL_THEMES = new Set([
+  'pastel-pink',
+  'pastel-blue',
+  'pastel-green',
+  'pastel-yellow',
+  'pastel-purple',
+  'pastel-peach',
+]);
+
+/** Map stored / imported theme strings onto a supported MemoryTheme. */
+export const resolveMemoryTheme = (value: unknown): MemoryTheme => {
+  if (value === 'note-paper' || value === 'thought-bubble' || value === 'blueprint' || value === 'terminal') {
+    return value;
+  }
+  if (typeof value === 'string' && LEGACY_PASTEL_THEMES.has(value)) {
+    return 'note-paper';
+  }
+  return 'note-paper';
+};
+
+export const isMemoryTheme = (value: unknown): value is MemoryTheme =>
+  typeof value === 'string' && (MEMORY_THEME_OPTIONS as string[]).includes(value);
+
 // =============================================================================
-// UI helpers – colour-theme → Tailwind class mapping
+// UI helpers – theme chrome (modal accents + picker labels)
 // =============================================================================
 
 export interface ThemeClasses {
@@ -64,57 +101,35 @@ export interface ThemeClasses {
   card: string;
   /** Lighter accent shade, e.g. for section backgrounds in the modal. */
   accent: string;
-  /** Small dot colour for the colour-picker swatch. */
-  dot: string;
+  /** Small preview tile for the theme picker. */
+  swatch: string;
   /** Human-readable label with emoji. */
   label: string;
 }
 
-export const THEME_CLASSES: Record<ColorTheme, ThemeClasses> = {
-  'pastel-pink': {
-    card: 'bg-rose-50 border-rose-200 hover:border-rose-300',
-    accent: 'bg-rose-100',
-    dot: 'bg-rose-400',
-    label: '🌸 Pink',
+export const THEME_CLASSES: Record<MemoryTheme, ThemeClasses> = {
+  'note-paper': {
+    card: 'memory-card',
+    accent: 'bg-[#fef9e7]',
+    swatch: 'theme-swatch',
+    label: '📝 Torn note',
   },
-  'pastel-blue': {
-    card: 'bg-sky-50 border-sky-200 hover:border-sky-300',
-    accent: 'bg-sky-100',
-    dot: 'bg-sky-400',
-    label: '💙 Blue',
+  'thought-bubble': {
+    card: 'memory-card',
+    accent: 'bg-[#f7fbff]',
+    swatch: 'theme-swatch',
+    label: '💭 Thought bubble',
   },
-  'pastel-green': {
-    card: 'bg-emerald-50 border-emerald-200 hover:border-emerald-300',
-    accent: 'bg-emerald-100',
-    dot: 'bg-emerald-400',
-    label: '🌿 Green',
+  blueprint: {
+    card: 'memory-card',
+    accent: 'bg-[#0b2b48]',
+    swatch: 'theme-swatch',
+    label: '📐 Blueprint',
   },
-  'pastel-yellow': {
-    card: 'bg-yellow-50 border-yellow-200 hover:border-yellow-300',
-    accent: 'bg-yellow-100',
-    dot: 'bg-yellow-400',
-    label: '✨ Yellow',
-  },
-  'pastel-purple': {
-    card: 'bg-purple-50 border-purple-200 hover:border-purple-300',
-    accent: 'bg-purple-100',
-    dot: 'bg-purple-400',
-    label: '💜 Purple',
-  },
-  'pastel-peach': {
-    card: 'bg-orange-50 border-orange-200 hover:border-orange-300',
-    accent: 'bg-orange-100',
-    dot: 'bg-orange-400',
-    label: '🍑 Peach',
+  terminal: {
+    card: 'memory-card',
+    accent: 'bg-[#0d1117]',
+    swatch: 'theme-swatch',
+    label: '🖥️ CRT terminal',
   },
 };
-
-/** Ordered list of colour themes for UI iteration. */
-export const COLOR_THEME_OPTIONS: ColorTheme[] = [
-  'pastel-pink',
-  'pastel-blue',
-  'pastel-green',
-  'pastel-yellow',
-  'pastel-purple',
-  'pastel-peach',
-];

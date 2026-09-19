@@ -42,7 +42,11 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { createLowlight, common } from 'lowlight';
 
 import type { Memory, MemoryAttachment, ColorTheme } from '../types/memory';
-import { THEME_CLASSES, COLOR_THEME_OPTIONS } from '../types/memory';
+import {
+  THEME_CLASSES,
+  MEMORY_THEME_OPTIONS,
+  resolveMemoryTheme,
+} from '../types/memory';
 import { DEFAULT_COLOR_THEME } from '../db/database';
 import {
   optimizeImage,
@@ -157,7 +161,7 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
   const [tags, setTags] = useState<string[]>(memory?.tags ?? []);
   const [tagInput, setTagInput] = useState('');
   const [colorTheme, setColorTheme] = useState<ColorTheme>(
-    memory?.colorTheme ?? DEFAULT_COLOR_THEME,
+    resolveMemoryTheme(memory?.colorTheme ?? DEFAULT_COLOR_THEME),
   );
   const [attachments, setAttachments] = useState<MemoryAttachment[]>(
     memory?.attachments ?? [],
@@ -386,8 +390,6 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
 
   // ---- Render -------------------------------------------------------------
 
-  const theme = THEME_CLASSES[colorTheme];
-
   return (
     /* Backdrop */
     <div
@@ -397,10 +399,7 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
     >
       {/* Modal panel */}
       <div
-        className={`
-          shadow-2xl flex flex-col overflow-hidden bg-white
-          border-2 ${theme.card.split(' ').find(c => c.startsWith('border-')) ?? 'border-gray-200'}
-        `}
+        className="shadow-2xl flex flex-col overflow-hidden bg-white border border-gray-200"
         style={{
           width: 'min(94vw, 1200px)',
           height: '88vh',
@@ -415,7 +414,7 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
             Sticky chrome – title, pin, save/close + formatting toolbar
             ================================================================ */}
         <div className="sticky top-0 z-20 border-b border-gray-200 bg-white">
-          <div className={`flex items-center gap-3 px-5 py-3 ${theme.accent}`}>
+          <div className="flex items-center gap-3 px-5 py-3 bg-gray-50">
             <input
               type="text"
               value={title}
@@ -436,6 +435,23 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
             >
               📌 {isPinned ? 'Pinned' : 'Pin'}
             </button>
+            <div
+              className="flex items-center gap-1.5 shrink-0"
+              role="group"
+              aria-label="Card theme"
+            >
+              {MEMORY_THEME_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  data-theme={option}
+                  title={THEME_CLASSES[option].label}
+                  aria-pressed={colorTheme === option}
+                  onClick={() => setColorTheme(option)}
+                  className={`theme-swatch ${colorTheme === option ? 'is-selected' : ''}`}
+                />
+              ))}
+            </div>
             <button
               type="button"
               onClick={handleSave}
@@ -564,36 +580,6 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
           <EditorContent editor={editor} />
 
           <div className="mt-8 pt-6 border-t border-gray-100 space-y-4">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                Card colour
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {COLOR_THEME_OPTIONS.map((t) => {
-                  const cls = THEME_CLASSES[t];
-                  return (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setColorTheme(t)}
-                      title={cls.label}
-                      className={`
-                        w-8 h-8 rounded-full border-2 transition-all
-                        ${cls.dot}
-                        ${colorTheme === t
-                          ? 'border-gray-600 scale-125 shadow-md'
-                          : 'border-transparent hover:scale-110'
-                        }
-                      `}
-                    />
-                  );
-                })}
-                <span className="self-center text-xs text-gray-500 ml-1">
-                  {THEME_CLASSES[colorTheme].label}
-                </span>
-              </div>
-            </div>
-
             <TagInput
               tags={tags}
               inputValue={tagInput}

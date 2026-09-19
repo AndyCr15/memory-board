@@ -138,4 +138,4 @@ export const replaceAllInDatabase = async (
   }
 };
 
-export const DEFAULT_COLOR_THEME: ColorTheme = 'pastel-yellow';
+export const DEFAULT_COLOR_THEME: ColorTheme = 'note-paper';

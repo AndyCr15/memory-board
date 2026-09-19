@@ -282,6 +282,8 @@ class ApiService {
    * Local cache is updated separately via database.putMemoriesBulk().
    */
   public async importBatch(memories: Memory[]): Promise<void> {
+    if (memories.length === 0) return;
+
     const sanitised = memories.map((memory) => toApiPayload(memory));
     const res = await this.fetchWithAuth('/api/memories.php?action=batch', {
       method: 'POST',

@@ -12,8 +12,9 @@
 import { saveAs } from 'file-saver';
 import { database } from './database';
 import { apiService } from './apiService';
+import { findExactDuplicate } from '../utils/memoryComparison';
 import type { ColorTheme, Memory, MemoryAttachment } from '../types/memory';
-import { COLOR_THEME_OPTIONS } from '../types/memory';
+import { resolveMemoryTheme } from '../types/memory';
 
 export const EXPORT_VERSION = 2 as const;
 
@@ -44,9 +45,6 @@ export interface ExportDocument {
   exportedAt: number;
   memories: ExportedMemory[];
 }
-
-const isColorTheme = (value: unknown): value is ColorTheme =>
-  typeof value === 'string' && (COLOR_THEME_OPTIONS as string[]).includes(value);
 
 const sanitiseAttachment = (raw: unknown): ExportedAttachment | null => {
   if (!raw || typeof raw !== 'object') return null;
@@ -80,7 +78,7 @@ export const sanitiseMemoryForExport = (raw: Memory | Record<string, unknown>): 
       ? record.tags.filter((t): t is string => typeof t === 'string')
       : [],
     attachments,
-    colorTheme: isColorTheme(record.colorTheme) ? record.colorTheme : 'pastel-yellow',
+    colorTheme: resolveMemoryTheme(record.colorTheme),
     isPinned: Boolean(record.isPinned),
     orderIndex: typeof record.orderIndex === 'number' ? record.orderIndex : 0,
     createdAt: typeof record.createdAt === 'number' ? record.createdAt : Date.now(),
@@ -168,16 +166,34 @@ export const exportBackup = async (): Promise<void> => {
 
 /**
  * Merges memories from a JSON backup into the signed-in tenant.
- * Records receive new UUIDs; userId is never copied.
+ * Exact duplicates already in IndexedDB are skipped before new UUIDs
+ * are assigned and before any batch network call.
  */
-export const importBackup = async (file: File): Promise<{ count: number }> => {
+export const importBackup = async (
+  file: File,
+): Promise<{ count: number; skippedCount: number }> => {
   const text = await file.text();
   const document = parseImportDocument(text);
+  const existingMemories = await database.getMemories();
   const now = Date.now();
-  const imported = document.memories.map((row) => prepareImportedMemory(row, now));
 
-  await apiService.importBatch(imported);
-  await database.putMemoriesBulk(imported);
+  let skippedCount = 0;
+  const sanitisedMemories: Memory[] = [];
 
-  return { count: imported.length };
+  for (const candidate of document.memories) {
+    if (findExactDuplicate(candidate, existingMemories)) {
+      skippedCount += 1;
+      continue;
+    }
+    sanitisedMemories.push(prepareImportedMemory(candidate, now));
+  }
+
+  if (sanitisedMemories.length === 0) {
+    return { count: 0, skippedCount };
+  }
+
+  await apiService.importBatch(sanitisedMemories);
+  await database.putMemoriesBulk(sanitisedMemories);
+
+  return { count: sanitisedMemories.length, skippedCount };
 };

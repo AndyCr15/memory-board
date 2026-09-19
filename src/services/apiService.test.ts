@@ -32,7 +32,7 @@ const cachedMemory: Memory = {
   contentHtml: '<p>offline</p>',
   contentText: 'offline',
   tags: [],
-  colorTheme: 'pastel-yellow',
+  colorTheme: 'note-paper',
   isPinned: false,
   orderIndex: 0,
   attachments: [],
@@ -244,5 +244,14 @@ describe('apiService.importBatch', () => {
     expect(body.memories[1]).not.toHaveProperty('userId');
     expect((body.memories[1].attachments as Array<Record<string, unknown>>)[0]).not.toHaveProperty('data');
     expect(database.putMemoriesBulk).not.toHaveBeenCalled();
+  });
+
+  it('does not dispatch a request when the batch is empty', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiService.importBatch([]);
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

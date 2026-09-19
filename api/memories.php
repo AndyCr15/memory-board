@@ -50,7 +50,7 @@ function handleListMemories(PDO $pdo, int $userId): void {
         $row['createdAt'] = (int) $row['createdAt'];
         $row['updatedAt'] = (int) $row['updatedAt'];
         $row['contentText'] = (string) ($row['contentText'] ?? '');
-        $row['colorTheme'] = (string) ($row['colorTheme'] ?? 'pastel-yellow');
+        $row['colorTheme'] = (string) ($row['colorTheme'] ?? 'note-paper');
         return $row;
     }, $rows);
 
@@ -90,7 +90,7 @@ function handleUpsertMemory(PDO $pdo, int $userId): void {
     $contentText = (string) ($data['contentText'] ?? '');
     $tagsJson = json_encode($data['tags'] ?? []) ?: '[]';
     $attachmentsJson = json_encode($data['attachments'] ?? []) ?: '[]';
-    $colorTheme = (string) ($data['colorTheme'] ?? 'pastel-yellow');
+    $colorTheme = (string) ($data['colorTheme'] ?? 'note-paper');
     $isPinned = !empty($data['isPinned']) ? 1 : 0;
     $orderIndex = (int) ($data['orderIndex'] ?? 0);
     $createdAt = (int) ($data['createdAt'] ?? (int) round(microtime(true) * 1000));
@@ -242,7 +242,7 @@ function handleBatchImport(PDO $pdo, int $userId): void {
                 ':contentText' => (string) ($memory['contentText'] ?? ''),
                 ':tags'        => json_encode($memory['tags'] ?? []) ?: '[]',
                 ':attachments' => json_encode($memory['attachments'] ?? []) ?: '[]',
-                ':colorTheme'  => (string) ($memory['colorTheme'] ?? 'pastel-yellow'),
+                ':colorTheme'  => (string) ($memory['colorTheme'] ?? 'note-paper'),
                 ':isPinned'    => !empty($memory['isPinned']) ? 1 : 0,
                 ':orderIndex'  => (int) ($memory['orderIndex'] ?? 0),
                 ':createdAt'   => (int) ($memory['createdAt'] ?? $now),

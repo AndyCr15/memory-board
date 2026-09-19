@@ -27,7 +27,7 @@
 
 import React, { useState } from 'react';
 import type { Memory } from '../types/memory';
-import { THEME_CLASSES } from '../types/memory';
+import { resolveMemoryTheme } from '../types/memory';
 
 interface MemoryCardProps {
   memory: Memory;
@@ -61,7 +61,7 @@ export const MemoryCard: React.FC<MemoryCardProps> = ({
   onDrop,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
-  const theme = THEME_CLASSES[memory.colorTheme];
+  const themeId = resolveMemoryTheme(memory.colorTheme);
 
   // ---------------------------------------------------------------------------
   // Drag-and-drop handlers (augment parent handlers with local visual state)
@@ -109,14 +109,14 @@ export const MemoryCard: React.FC<MemoryCardProps> = ({
       tabIndex={0}
       aria-label={`View memory: ${memory.title || 'Untitled'}`}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onView(); }}
+      data-theme={themeId}
       className={`
-        relative flex flex-col rounded-2xl border-2 p-4 shadow-sm
+        memory-card relative flex flex-col p-4
         cursor-pointer select-none
-        transition-all duration-200
-        ${theme.card}
+        transition-transform duration-200
         ${isDragOver
-          ? 'ring-2 ring-indigo-400 ring-offset-2 scale-[0.97] shadow-lg'
-          : 'hover:shadow-md hover:scale-[1.01]'
+          ? 'ring-2 ring-indigo-400 ring-offset-2 scale-[0.97]'
+          : 'hover:scale-[1.01]'
         }
         ${memory.isPinned
           ? 'ring-2 ring-yellow-400 ring-offset-1'
@@ -136,9 +136,9 @@ export const MemoryCard: React.FC<MemoryCardProps> = ({
 
       {/* ---- Header: title + actions -------------------------------------- */}
       <div className="flex items-start gap-2 mb-2">
-        <h3 className="flex-1 font-semibold text-gray-800 text-sm leading-snug line-clamp-2">
+        <h3 className="memory-card-title flex-1 font-semibold text-sm leading-snug line-clamp-2">
           {memory.title || (
-            <span className="italic text-gray-400">Untitled</span>
+            <span className="italic opacity-60">Untitled</span>
           )}
         </h3>
 
@@ -173,7 +173,7 @@ export const MemoryCard: React.FC<MemoryCardProps> = ({
 
       {/* ---- Content preview (plain text, max 4 lines) ------------------- */}
       {memory.contentText.trim() && (
-        <p className="flex-1 text-gray-600 text-xs leading-relaxed line-clamp-4 mb-2">
+        <p className="memory-card-body flex-1 text-xs leading-relaxed line-clamp-4 mb-2">
           {memory.contentText}
         </p>
       )}
@@ -184,7 +184,7 @@ export const MemoryCard: React.FC<MemoryCardProps> = ({
           {memory.tags.map((tag) => (
             <span
               key={tag}
-              className="px-2 py-0.5 bg-white/60 rounded-full text-xs text-gray-600 font-medium"
+              className="memory-card-tag px-2 py-0.5 rounded-full text-xs font-medium"
             >
               #{tag}
             </span>
@@ -194,14 +194,14 @@ export const MemoryCard: React.FC<MemoryCardProps> = ({
 
       {/* ---- Attachments indicator ---------------------------------------- */}
       {memory.attachments.length > 0 && (
-        <p className="text-xs text-gray-500 mb-2">
+        <p className="memory-card-meta text-xs mb-2">
           📎 {memory.attachments.length}{' '}
           {memory.attachments.length === 1 ? 'attachment' : 'attachments'}
         </p>
       )}
 
       {/* ---- Footer: last-updated date ------------------------------------ */}
-      <div className="text-xs text-gray-400 border-t border-black/5 pt-2 mt-auto">
+      <div className="memory-card-meta text-xs border-t border-current/10 pt-2 mt-auto">
         {formatDate(memory.updatedAt)}
       </div>
     </div>
