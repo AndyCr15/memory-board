@@ -195,11 +195,12 @@ describe('sanitizeHtml – rich-text preservation', () => {
     expect(result).toContain('rel="noopener noreferrer"');
   });
 
-  it('does not add target=_blank to relative links', () => {
+  it('unwraps relative links instead of opening them in a new tab', () => {
     const input = '<a href="/local/path">Internal link</a>';
     const result = sanitizeHtml(input);
 
-    // Relative links should not get target=_blank
+    expect(result).not.toContain('<a');
+    expect(result).toContain('Internal link');
     expect(result).not.toContain('target="_blank"');
   });
 });

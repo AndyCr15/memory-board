@@ -37,7 +37,7 @@ import React, {
   useRef,
 } from 'react';
 import type { Memory, MemoryAttachment } from '../types/memory';
-import { THEME_CLASSES, resolveMemoryTheme } from '../types/memory';
+import { resolveMemoryTheme } from '../types/memory';
 import { sanitizeHtml } from '../services/sanitizer';
 import { formatBytes } from '../services/imageOptimizer';
 
@@ -253,7 +253,7 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
   // Render
   // --------------------------------------------------------------------------
 
-  const theme = THEME_CLASSES[resolveMemoryTheme(memory.colorTheme)];
+  const themeId = resolveMemoryTheme(memory.colorTheme);
 
   return (
     /*
@@ -270,7 +270,7 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
     >
       {/* Inner container – flex column, stops click propagation to dialog */}
       <div
-        data-theme={resolveMemoryTheme(memory.colorTheme)}
+        data-theme={themeId}
         className="memory-card flex flex-col h-full overflow-hidden"
         style={{ borderRadius: 12 }}
         onClick={(e) => e.stopPropagation()}
@@ -279,7 +279,7 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
         {/* ================================================================
             Header – pastel-themed, sticky
             ================================================================ */}
-        <div className={`${theme.accent} px-6 py-4 border-b border-black/10 sticky top-0 z-20`}>
+        <div className={`theme-chrome px-6 py-4 border-b border-black/10 sticky top-0 z-20`}>
           <div className="flex items-start gap-3">
 
             {/* Title + tags + timestamps */}
@@ -291,7 +291,7 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
                     📌
                   </span>
                 )}
-                <h2 className="text-xl font-bold text-gray-900 leading-snug">
+                <h2 className="theme-header-title text-xl font-bold leading-snug">
                   {memory.title || (
                     <em className="text-gray-400 font-normal">Untitled</em>
                   )}
@@ -304,7 +304,7 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
                   {memory.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="px-2.5 py-0.5 bg-white/60 rounded-full text-xs font-medium text-gray-700 border border-black/5"
+                      className="theme-header-fg px-2.5 py-0.5 bg-white/15 rounded-full text-xs font-medium border border-current/20"
                     >
                       #{tag}
                     </span>
@@ -313,7 +313,7 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
               )}
 
               {/* Timestamps – UK DD/MM/YYYY HH:mm */}
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-500">
+              <div className="theme-header-fg mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-xs opacity-80">
                 <span>Created: {formatUKDateTime(memory.createdAt)}</span>
                 <span>Updated: {formatUKDateTime(memory.updatedAt)}</span>
               </div>
@@ -323,7 +323,7 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={handleClose}
-                className="w-8 h-8 flex items-center justify-center text-2xl leading-none text-gray-400 hover:text-gray-700 hover:bg-black/10 rounded-lg transition-colors"
+                className="theme-header-fg w-8 h-8 flex items-center justify-center text-2xl leading-none hover:opacity-70 hover:bg-black/10 rounded-lg transition-colors"
                 title="Close (Esc)"
                 aria-label="Close modal"
               >

@@ -37,6 +37,7 @@ import { generateHTML } from '@tiptap/core';
 import { useEditor, EditorContent, ReactNodeViewRenderer } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import ImageExtension from '@tiptap/extension-image';
+import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { createLowlight, common } from 'lowlight';
@@ -58,6 +59,7 @@ import {
   wrapSelectionAsCodeBlock,
 } from '../editor/editorConfig';
 import { apiService, MAX_ATTACHMENT_BYTES } from '../services/apiService';
+import { isSafeHref, normaliseLinkUrl, sanitiseAnchorsInHtml } from '../utils/sanitiser';
 import { CodeBlockView } from './CodeBlock';
 import { TagInput, normalizeTag } from './TagInput';
 
@@ -90,9 +92,20 @@ const RichCodeBlock = CodeBlockLowlight.extend({
 // Placeholder is intentionally omitted: it is a pure UI decoration that adds
 // no nodes or marks to the schema and has zero effect on HTML output.
 // ---------------------------------------------------------------------------
+const SafeLink = Link.configure({
+  openOnClick: false,
+  autolink: true,
+  HTMLAttributes: {
+    target: '_blank',
+    rel: 'noopener noreferrer',
+  },
+  validate: (href) => isSafeHref(href),
+});
+
 const SERIALISATION_EXTENSIONS = [
   StarterKit.configure({ codeBlock: false }),
   RichCodeBlock,
+  SafeLink,
   ImageExtension.configure({ inline: false, allowBase64: true }),
 ];
 
@@ -117,6 +130,7 @@ interface MemoryEditorModalProps {
 
 interface ToolbarButtonProps {
   onClick: () => void;
+  onMouseDown?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   active?: boolean;
   title: string;
   children: React.ReactNode;
@@ -124,6 +138,7 @@ interface ToolbarButtonProps {
 
 const ToolbarButton: React.FC<ToolbarButtonProps> = ({
   onClick,
+  onMouseDown,
   active,
   title,
   children,
@@ -131,6 +146,7 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
   <button
     type="button"
     onClick={onClick}
+    onMouseDown={onMouseDown}
     title={title}
     className={`
       px-2 py-1 rounded text-sm font-medium transition-colors
@@ -169,10 +185,15 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isPinned, setIsPinned] = useState(memory?.isPinned ?? false);
+  const [linkPromptOpen, setLinkPromptOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
 
   // Refs
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const attachmentFileInputRef = useRef<HTMLInputElement>(null);
+  const linkInputRef = useRef<HTMLInputElement>(null);
+  const savedDomRangeRef = useRef<Range | null>(null);
+  const savedSelectionRef = useRef<{ from: number; to: number } | null>(null);
   // Stable ref to the latest image-insertion handler (avoids stale closure in
   // editor editorProps which is only evaluated once on creation)
   const insertImageRef = useRef<((file: File | Blob) => Promise<void>) | null>(null);
@@ -201,7 +222,11 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
             return true; // Prevent default paste (which would insert raw PNG)
           }
         }
+        // HTML (including <a> tags) falls through to TipTap's schema paste.
         return false;
+      },
+      transformPastedHTML(html) {
+        return sanitiseAnchorsInHtml(html);
       },
       // Handle file drop into the editor
       handleDrop(_view, event, _slice, moved) {
@@ -234,6 +259,57 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
       }
     };
   }, [editor]);
+
+  const captureLinkSelection = useCallback(() => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      savedDomRangeRef.current = selection.getRangeAt(0).cloneRange();
+    }
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    if (from !== to) savedSelectionRef.current = { from, to };
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+    editor.on('selectionUpdate', captureLinkSelection);
+    return () => {
+      editor.off('selectionUpdate', captureLinkSelection);
+    };
+  }, [editor, captureLinkSelection]);
+
+  const openLinkPrompt = () => {
+    captureLinkSelection();
+    setError(null);
+    setLinkPromptOpen(true);
+    requestAnimationFrame(() => linkInputRef.current?.focus());
+  };
+
+  const applyLink = () => {
+    const href = normaliseLinkUrl(linkUrl);
+    if (!isSafeHref(href)) {
+      setError('Enter an http, https, or mailto URL.');
+      return;
+    }
+    const saved = savedSelectionRef.current;
+    if (!editor || !saved || saved.from === saved.to) {
+      setError('Select the text you want to turn into a link.');
+      return;
+    }
+    const applied = editor
+      .chain()
+      .focus()
+      .setTextSelection(saved)
+      .setLink({ href })
+      .run();
+    if (!applied) {
+      setError('Could not apply that link.');
+      return;
+    }
+    setLinkPromptOpen(false);
+    setLinkUrl('');
+    setError(null);
+  };
 
   // ---- Tag helpers --------------------------------------------------------
 
@@ -414,22 +490,22 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
             Sticky chrome – title, pin, save/close + formatting toolbar
             ================================================================ */}
         <div className="sticky top-0 z-20 border-b border-gray-200 bg-white">
-          <div className="flex items-center gap-3 px-5 py-3 bg-gray-50">
+          <div data-theme={colorTheme} className="theme-chrome flex items-center gap-3 px-5 py-3">
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Memory title…"
               autoFocus
-              className="flex-1 text-lg font-semibold bg-transparent text-gray-800 placeholder-gray-400 focus:outline-none"
+              className="theme-header-title flex-1 text-lg font-semibold bg-transparent placeholder:text-current placeholder:opacity-50 focus:outline-none"
             />
             <button
               type="button"
               onClick={() => setIsPinned((prev) => !prev)}
-              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+              className={`theme-header-fg px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                 isPinned
                   ? 'bg-yellow-100 border-yellow-300 text-yellow-800'
-                  : 'bg-white/70 border-gray-200 text-gray-600 hover:bg-white'
+                  : 'border-current/30 bg-white/10 hover:bg-white/20'
               }`}
               title={isPinned ? 'Unpin memory' : 'Pin memory'}
             >
@@ -463,7 +539,7 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-700 text-2xl leading-none transition-colors"
+              className="theme-header-fg text-2xl leading-none transition-colors hover:opacity-70"
               title="Close (Esc)"
             >
               ×
@@ -559,6 +635,43 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
             >
               🖼
             </ToolbarButton>
+            <ToolbarButton
+              onMouseDown={(event) => {
+                event.preventDefault();
+                captureLinkSelection();
+              }}
+              onClick={openLinkPrompt}
+              active={editor?.isActive('link') || linkPromptOpen}
+              title="Link"
+            >
+              Link
+            </ToolbarButton>
+            {linkPromptOpen && (
+              <form
+                className="flex items-center gap-1"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  applyLink();
+                }}
+              >
+                <input
+                  ref={linkInputRef}
+                  type="text"
+                  inputMode="url"
+                  value={linkUrl}
+                  onChange={(event) => setLinkUrl(event.target.value)}
+                  placeholder="https://…"
+                  aria-label="Link URL"
+                  className="w-44 px-2 py-1 text-sm border border-gray-300 rounded bg-white text-gray-800"
+                />
+                <button
+                  type="submit"
+                  className="px-2 py-1 text-sm font-medium text-indigo-700 hover:bg-indigo-50 rounded"
+                >
+                  Apply
+                </button>
+              </form>
+            )}
             <input
               ref={imageFileInputRef}
               type="file"

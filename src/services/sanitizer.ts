@@ -22,6 +22,7 @@
 // =============================================================================
 
 import DOMPurify from 'dompurify';
+import { enforceSafeAnchors } from '../utils/sanitiser';
 
 // ---------------------------------------------------------------------------
 // Allowed tag / attribute set (TipTap rich-text output)
@@ -98,14 +99,8 @@ export const sanitizeHtml = (dirty: string): string => {
     }
   });
 
-  // Force external links to open in a new tab safely
-  scratch.querySelectorAll('a[href]').forEach((a) => {
-    const href = a.getAttribute('href') ?? '';
-    if (/^https?:\/\//.test(href)) {
-      a.setAttribute('target', '_blank');
-      a.setAttribute('rel', 'noopener noreferrer');
-    }
-  });
+  // Keep http(s)/mailto anchors only, and force a safe new-tab policy.
+  enforceSafeAnchors(scratch);
 
   return scratch.innerHTML;
 };

@@ -8,6 +8,40 @@
   box-sizing: border-box;
 }
 
+[data-theme='note-paper'],
+[data-theme='thought-bubble'] {
+  --theme-header-fg: #1e293b;
+  --theme-header-title: #0f172a;
+  --theme-header-bg: #f8fafc;
+}
+
+[data-theme='blueprint'] {
+  --theme-header-fg: #f8fafc;
+  --theme-header-title: #ffffff;
+  --theme-header-bg: #0b2b48;
+}
+
+[data-theme='terminal'] {
+  --theme-header-fg: #00ff66;
+  --theme-header-title: #ffffff;
+  --theme-header-bg: #0d1117;
+}
+
+.theme-chrome {
+  color: var(--theme-header-fg);
+  background: var(--theme-header-bg);
+}
+
+.theme-header-title,
+.memory-card .memory-card-title {
+  color: var(--theme-header-title);
+}
+
+.theme-header-fg,
+.memory-card .theme-header-fg {
+  color: var(--theme-header-fg);
+}
+
 .memory-card .memory-card-title,
 .memory-card .memory-card-body,
 .memory-card .memory-card-meta,
@@ -36,7 +70,7 @@
 }
 
 .memory-card[data-theme='note-paper'] .memory-card-title {
-  color: #3b2a1a;
+  font-family: 'Georgia', 'Palatino Linotype', 'Times New Roman', serif;
 }
 
 .memory-card[data-theme='note-paper'] .memory-card-body,
@@ -97,7 +131,7 @@
 }
 
 .memory-card[data-theme='thought-bubble'] .memory-card-title {
-  color: #1e3a5f;
+  font-family: system-ui, sans-serif;
 }
 
 .memory-card[data-theme='thought-bubble'] .memory-card-tag {
@@ -125,7 +159,6 @@
 }
 
 .memory-card[data-theme='blueprint'] .memory-card-title {
-  color: #ffffff;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -157,7 +190,6 @@
 }
 
 .memory-card[data-theme='terminal'] .memory-card-title {
-  color: #00ff66;
   text-shadow: 0 0 6px rgba(0, 255, 102, 0.55);
 }
 

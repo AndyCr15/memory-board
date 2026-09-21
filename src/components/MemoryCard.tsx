@@ -146,7 +146,7 @@ export const MemoryCard: React.FC<MemoryCardProps> = ({
          * Action buttons – e.stopPropagation() on every button ensures that
          * clicking them does NOT bubble up to the card root's onClick (onView).
          */}
-        <div className="flex gap-0.5 shrink-0 -mt-0.5">
+        <div className="flex gap-0.5 shrink-0 -mt-0.5 theme-header-fg">
           <button
             onClick={(e) => { e.stopPropagation(); onPin(); }}
             className="p-1.5 rounded-lg hover:bg-black/10 transition-colors text-sm"
