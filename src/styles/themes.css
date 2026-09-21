@@ -13,18 +13,24 @@
   --theme-header-fg: #1e293b;
   --theme-header-title: #0f172a;
   --theme-header-bg: #f8fafc;
+  --theme-link: #2563eb;
+  --theme-link-hover: #1d4ed8;
 }
 
 [data-theme='blueprint'] {
   --theme-header-fg: #f8fafc;
   --theme-header-title: #ffffff;
   --theme-header-bg: #0b2b48;
+  --theme-link: #7dd3fc;
+  --theme-link-hover: #bae6fd;
 }
 
 [data-theme='terminal'] {
   --theme-header-fg: #00ff66;
   --theme-header-title: #ffffff;
   --theme-header-bg: #0d1117;
+  --theme-link: #39ff14;
+  --theme-link-hover: #9aff80;
 }
 
 .theme-chrome {
@@ -40,6 +46,18 @@
 .theme-header-fg,
 .memory-card .theme-header-fg {
   color: var(--theme-header-fg);
+}
+
+.memory-card .tiptap-content a,
+[data-theme] .tiptap-content a {
+  color: var(--theme-link, #2563eb);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.memory-card .tiptap-content a:hover,
+[data-theme] .tiptap-content a:hover {
+  color: var(--theme-link-hover, #1d4ed8);
 }
 
 .memory-card .memory-card-title,

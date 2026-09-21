@@ -48,6 +48,19 @@
 .tiptap-content em,
 .ProseMirror em { @apply italic; }
 
+.tiptap-content a,
+.ProseMirror a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.tiptap-content a:hover,
+.ProseMirror a:hover {
+  color: #1d4ed8;
+}
+
 .tiptap-content ul,
 .ProseMirror ul { @apply list-disc pl-6 mb-2 space-y-1; }
 
