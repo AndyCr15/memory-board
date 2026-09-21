@@ -33,9 +33,7 @@ function getDatabaseConnection(): PDO {
  * Returns the authenticated tenant id or exits with HTTP 401.
  */
 function requireAuthenticatedUserId(): int {
-    if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_start();
-    }
+    startAppSession();
 
     if (empty($_SESSION['userId'])) {
         http_response_code(401);

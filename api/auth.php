@@ -6,9 +6,7 @@ require_once __DIR__ . '/db.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
+startAppSession();
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
@@ -118,6 +116,7 @@ function handleRegister(array $payload): void {
     session_regenerate_id(true);
     $_SESSION['userId'] = (int) $pdo->lastInsertId();
     $_SESSION['username'] = $username;
+    refreshAppSessionCookie();
 
     http_response_code(201);
     echo json_encode([
@@ -154,6 +153,7 @@ function handleLogin(array $payload): void {
     session_regenerate_id(true);
     $_SESSION['userId'] = (int) $user['id'];
     $_SESSION['username'] = (string) $user['username'];
+    refreshAppSessionCookie();
 
     http_response_code(200);
     echo json_encode([
@@ -167,16 +167,14 @@ function handleLogout(): void {
     $_SESSION = [];
 
     if (ini_get('session.use_cookies')) {
-        $params = session_get_cookie_params();
-        setcookie(
-            session_name(),
-            '',
-            time() - 42000,
-            $params['path'],
-            $params['domain'],
-            (bool) $params['secure'],
-            (bool) $params['httponly']
-        );
+        $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+        setcookie(session_name(), '', [
+            'expires' => time() - 42000,
+            'path' => '/',
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
     }
 
     session_destroy();

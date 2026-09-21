@@ -71,14 +71,18 @@ class ApiService {
     this.userId = userId;
     try {
       if (username && userId !== null) {
-        sessionStorage.setItem(SESSION_USERNAME_KEY, username);
-        sessionStorage.setItem(SESSION_USER_ID_KEY, String(userId));
+        localStorage.setItem(SESSION_USERNAME_KEY, username);
+        localStorage.setItem(SESSION_USER_ID_KEY, String(userId));
+        sessionStorage.removeItem(SESSION_USERNAME_KEY);
+        sessionStorage.removeItem(SESSION_USER_ID_KEY);
       } else {
+        localStorage.removeItem(SESSION_USERNAME_KEY);
+        localStorage.removeItem(SESSION_USER_ID_KEY);
         sessionStorage.removeItem(SESSION_USERNAME_KEY);
         sessionStorage.removeItem(SESSION_USER_ID_KEY);
       }
     } catch {
-      // sessionStorage may be unavailable (private mode / tests).
+      // Storage may be unavailable (private mode / tests).
     }
     this.notify();
   }
@@ -183,8 +187,12 @@ class ApiService {
 
   private restoreCachedIdentity(): { username: string; userId: number } | null {
     try {
-      const rawId = sessionStorage.getItem(SESSION_USER_ID_KEY);
-      const username = sessionStorage.getItem(SESSION_USERNAME_KEY);
+      const rawId =
+        localStorage.getItem(SESSION_USER_ID_KEY) ??
+        sessionStorage.getItem(SESSION_USER_ID_KEY);
+      const username =
+        localStorage.getItem(SESSION_USERNAME_KEY) ??
+        sessionStorage.getItem(SESSION_USERNAME_KEY);
       if (!rawId || !username) return null;
       const userId = Number(rawId);
       if (!Number.isFinite(userId)) return null;
