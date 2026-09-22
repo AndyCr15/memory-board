@@ -13,6 +13,43 @@ define('SESSION_LIFETIME_SECONDS', 60 * 60 * 24 * 30);
 /** Long-lived remember-me cookie (survives shared-host session GC). */
 define('AUTH_COOKIE_NAME', 'memoryboard_auth');
 
+/** HMAC key for the remember cookie. Changing this signs everyone out. */
+define('AUTH_SECRET', 'replace_with_a_long_random_string');
+
+function authSigningKey(): string {
+    return AUTH_SECRET;
+}
+
+function issuePersistentAuthCookie(int $userId): void {
+    if ($userId <= 0) {
+        return;
+    }
+    $expires = time() + SESSION_LIFETIME_SECONDS;
+    $payload = $userId . '|' . $expires;
+    $sig = hash_hmac('sha256', $payload, authSigningKey());
+    setAppCookie(AUTH_COOKIE_NAME, $userId . '.' . $expires . '.' . $sig, $expires);
+}
+
+function readPersistentAuthUserId(): ?int {
+    $raw = (string) ($_COOKIE[AUTH_COOKIE_NAME] ?? '');
+    $parts = explode('.', $raw, 3);
+    if (count($parts) !== 3) {
+        return null;
+    }
+    [$userId, $expires, $sig] = $parts;
+    if (!ctype_digit($userId) || !ctype_digit($expires)) {
+        return null;
+    }
+    if ((int) $expires < time()) {
+        return null;
+    }
+    $expected = hash_hmac('sha256', $userId . '|' . $expires, authSigningKey());
+    if (!hash_equals($expected, $sig)) {
+        return null;
+    }
+    return (int) $userId;
+}
+
 function isAppRequestHttps(): bool {
     if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
         return true;
