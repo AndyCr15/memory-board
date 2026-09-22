@@ -113,14 +113,14 @@ function handleRegister(array $payload): void {
     $insert->bindValue(':passwordHash', password_hash($password, PASSWORD_DEFAULT), PDO::PARAM_STR);
     $insert->execute();
 
-    session_regenerate_id(true);
-    issueRememberedLogin((int) $pdo->lastInsertId(), $username);
+    $userId = (int) $pdo->lastInsertId();
+    establishUserSession($userId, $username);
 
     http_response_code(201);
     echo json_encode([
         'success' => true,
         'username' => $username,
-        'userId' => (int) $_SESSION['userId'],
+        'userId' => $userId,
     ]);
 }
 
@@ -148,8 +148,7 @@ function handleLogin(array $payload): void {
         exit;
     }
 
-    session_regenerate_id(true);
-    issueRememberedLogin((int) $user['id'], (string) $user['username']);
+    establishUserSession((int) $user['id'], (string) $user['username']);
 
     http_response_code(200);
     echo json_encode([
@@ -160,14 +159,21 @@ function handleLogin(array $payload): void {
 }
 
 function handleLogout(): void {
-    clearRememberedLogin();
+    try {
+        clearRememberedLogin();
+    } catch (Throwable $e) {
+        clearAppCookie(AUTH_COOKIE_NAME);
+    }
+
     $_SESSION = [];
 
     if (ini_get('session.use_cookies')) {
         clearAppSessionCookie();
     }
 
-    session_destroy();
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        @session_destroy();
+    }
 
     http_response_code(200);
     echo json_encode(['success' => true]);
