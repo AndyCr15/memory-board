@@ -10,6 +10,9 @@ define('DB_PASS', 'replace_with_actual_password');
 /** Keep signed-in sessions for 30 days. */
 define('SESSION_LIFETIME_SECONDS', 60 * 60 * 24 * 30);
 
+/** Long-lived remember-me cookie (survives shared-host session GC). */
+define('AUTH_COOKIE_NAME', 'memoryboard_auth');
+
 function isAppRequestHttps(): bool {
     if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
         return true;
@@ -22,9 +25,53 @@ function isAppRequestHttps(): bool {
 }
 
 /**
- * Configure a persistent HttpOnly session cookie, then start the session.
- * Cookie lifetime is applied only via session_set_cookie_params (before start)
- * so hosts do not receive conflicting Set-Cookie headers.
+ * Private session directory so other sites on the same host cannot garbage-collect
+ * our session files with a short default gc_maxlifetime (~24 minutes).
+ */
+function appSessionSavePath(): string {
+    $dir = __DIR__ . DIRECTORY_SEPARATOR . 'sessions';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0700, true);
+    }
+    $deny = $dir . DIRECTORY_SEPARATOR . '.htaccess';
+    if (!is_file($deny)) {
+        @file_put_contents($deny, "Require all denied\n");
+    }
+    return $dir;
+}
+
+function appCookieOptions(int $expires): array {
+    return [
+        'expires' => $expires,
+        'path' => '/',
+        'secure' => isAppRequestHttps(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ];
+}
+
+function setAppCookie(string $name, string $value, int $expires): void {
+    if (PHP_VERSION_ID >= 70300) {
+        setcookie($name, $value, appCookieOptions($expires));
+        return;
+    }
+    setcookie(
+        $name,
+        $value,
+        $expires,
+        '/',
+        '',
+        isAppRequestHttps(),
+        true
+    );
+}
+
+function clearAppCookie(string $name): void {
+    setAppCookie($name, '', time() - 42000);
+}
+
+/**
+ * Configure a persistent HttpOnly session cookie in an isolated save path.
  */
 function startAppSession(): void {
     if (session_status() === PHP_SESSION_ACTIVE) {
@@ -33,6 +80,11 @@ function startAppSession(): void {
 
     $lifetime = SESSION_LIFETIME_SECONDS;
     $secure = isAppRequestHttps();
+    $savePath = appSessionSavePath();
+
+    if (is_dir($savePath) && is_writable($savePath)) {
+        session_save_path($savePath);
+    }
 
     ini_set('session.use_only_cookies', '1');
     ini_set('session.use_strict_mode', '1');
@@ -58,18 +110,5 @@ function startAppSession(): void {
 }
 
 function clearAppSessionCookie(): void {
-    $secure = isAppRequestHttps();
-    $name = session_name();
-
-    if (PHP_VERSION_ID >= 70300) {
-        setcookie($name, '', [
-            'expires' => time() - 42000,
-            'path' => '/',
-            'secure' => $secure,
-            'httponly' => true,
-            'samesite' => 'Lax',
-        ]);
-    } else {
-        setcookie($name, '', time() - 42000, '/', '', $secure, true);
-    }
+    clearAppCookie(session_name());
 }

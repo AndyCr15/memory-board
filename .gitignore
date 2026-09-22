@@ -19,3 +19,7 @@ Thumbs.db
 api/uploads/*
 !api/uploads/.htaccess
 !api/uploads/.gitkeep
+
+# PHP session files (isolated from shared-host GC)
+api/sessions/*
+!api/sessions/.htaccess

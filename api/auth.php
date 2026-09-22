@@ -4,7 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
 
-startAppSession();
+ensureAuthenticatedSession();
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -114,8 +114,7 @@ function handleRegister(array $payload): void {
     $insert->execute();
 
     session_regenerate_id(true);
-    $_SESSION['userId'] = (int) $pdo->lastInsertId();
-    $_SESSION['username'] = $username;
+    issueRememberedLogin((int) $pdo->lastInsertId(), $username);
 
     http_response_code(201);
     echo json_encode([
@@ -150,8 +149,7 @@ function handleLogin(array $payload): void {
     }
 
     session_regenerate_id(true);
-    $_SESSION['userId'] = (int) $user['id'];
-    $_SESSION['username'] = (string) $user['username'];
+    issueRememberedLogin((int) $user['id'], (string) $user['username']);
 
     http_response_code(200);
     echo json_encode([
@@ -162,6 +160,7 @@ function handleLogin(array $payload): void {
 }
 
 function handleLogout(): void {
+    clearRememberedLogin();
     $_SESSION = [];
 
     if (ini_get('session.use_cookies')) {
