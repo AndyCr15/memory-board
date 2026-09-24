@@ -22,7 +22,9 @@ export type MemoryTheme =
   | 'note-paper'
   | 'thought-bubble'
   | 'blueprint'
-  | 'terminal';
+  | 'terminal'
+  | 'supermarket'
+  | 'storefront';
 
 /**
  * Historical alias.  Stored `colorTheme` values may still be a MemoryTheme
@@ -64,6 +66,8 @@ export const MEMORY_THEME_OPTIONS: MemoryTheme[] = [
   'thought-bubble',
   'blueprint',
   'terminal',
+  'supermarket',
+  'storefront',
 ];
 
 /** Ordered list of colour themes for UI iteration. */
@@ -80,8 +84,8 @@ const LEGACY_PASTEL_THEMES = new Set([
 
 /** Map stored / imported theme strings onto a supported MemoryTheme. */
 export const resolveMemoryTheme = (value: unknown): MemoryTheme => {
-  if (value === 'note-paper' || value === 'thought-bubble' || value === 'blueprint' || value === 'terminal') {
-    return value;
+  if (typeof value === 'string' && (MEMORY_THEME_OPTIONS as string[]).includes(value)) {
+    return value as MemoryTheme;
   }
   if (typeof value === 'string' && LEGACY_PASTEL_THEMES.has(value)) {
     return 'note-paper';
@@ -131,5 +135,17 @@ export const THEME_CLASSES: Record<MemoryTheme, ThemeClasses> = {
     accent: 'bg-[#0d1117]',
     swatch: 'theme-swatch',
     label: '🖥️ CRT terminal',
+  },
+  supermarket: {
+    card: 'memory-card',
+    accent: 'bg-[#fffdf6]',
+    swatch: 'theme-swatch',
+    label: '🛒 Supermarket',
+  },
+  storefront: {
+    card: 'memory-card',
+    accent: 'bg-[#16122b]',
+    swatch: 'theme-swatch',
+    label: '🛍️ Online shop',
   },
 };

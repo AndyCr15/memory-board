@@ -6,7 +6,7 @@
 //
 // Layout (top → bottom inside the dialog):
 //   ┌────────────────────────────────────────────────┐
-//   │ 📌 Title                                    [×]  │ ← Pastel-themed header
+//   │ 📌 Title              [✏️ Edit Memory] [×] │
 //   │ #tag1 #tag2   Created: DD/MM/YYYY HH:mm        │
 //   │               Updated: DD/MM/YYYY HH:mm        │
 //   ├────────────────────────────────────────────────┤
@@ -16,8 +16,6 @@
 //   │  └──────────────────────────────────────┘      │
 //   │  📎 Attachments                                 │
 //   │    📄 file.pdf  420 KB    [⬇ Download]         │
-//   ├────────────────────────────────────────────────┤
-//   │ [✏️ Edit Memory]                    [× Close]  │ ← Footer
 //   └────────────────────────────────────────────────┘
 //
 // Behaviour:
@@ -319,11 +317,18 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
               </div>
             </div>
 
-            {/* Header actions – close only; Edit lives in the footer */}
             <div className="flex items-center gap-2 shrink-0">
               <button
+                type="button"
+                onClick={handleEdit}
+                className="px-4 py-1.5 text-sm font-semibold bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg shadow-sm transition-colors"
+              >
+                ✏️ Edit Memory
+              </button>
+              <button
+                type="button"
                 onClick={handleClose}
-                className="theme-header-fg w-8 h-8 flex items-center justify-center text-2xl leading-none hover:opacity-70 hover:bg-black/10 rounded-lg transition-colors"
+                className="theme-header-fg text-2xl leading-none transition-colors hover:opacity-70"
                 title="Close (Esc)"
                 aria-label="Close modal"
               >
@@ -380,24 +385,6 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
               </ul>
             </div>
           )}
-        </div>
-
-        {/* ================================================================
-            Footer – actions
-            ================================================================ */}
-        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/80 flex items-center justify-between shrink-0">
-          <button
-            onClick={handleEdit}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl shadow-sm transition-colors"
-          >
-            ✏️ Edit Memory
-          </button>
-          <button
-            onClick={handleClose}
-            className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 transition-colors"
-          >
-            × Close
-          </button>
         </div>
       </div>
     </dialog>

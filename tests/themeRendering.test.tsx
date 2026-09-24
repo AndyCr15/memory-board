@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
 import { MemoryCard } from '../src/components/MemoryCard';
-import type { Memory, MemoryTheme } from '../src/types/memory';
-import { resolveMemoryTheme } from '../src/types/memory';
+import type { Memory } from '../src/types/memory';
+import { resolveMemoryTheme, MEMORY_THEME_OPTIONS } from '../src/types/memory';
 
 const noop = () => {};
 
@@ -34,7 +34,7 @@ const renderCard = (theme: string) =>
     />,
   );
 
-const THEMES: MemoryTheme[] = ['note-paper', 'thought-bubble', 'blueprint', 'terminal'];
+const THEMES = MEMORY_THEME_OPTIONS;
 
 describe('MemoryCard theme rendering', () => {
   it.each(THEMES)('sets data-theme="%s" on the card root', (theme) => {

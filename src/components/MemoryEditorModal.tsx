@@ -106,7 +106,7 @@ const SERIALISATION_EXTENSIONS = [
   StarterKit.configure({ codeBlock: false }),
   RichCodeBlock,
   SafeLink,
-  ImageExtension.configure({ inline: false, allowBase64: true }),
+  ImageExtension.configure({ inline: true, allowBase64: true }),
 ];
 
 // ---------------------------------------------------------------------------
@@ -197,6 +197,7 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
   // Stable ref to the latest image-insertion handler (avoids stale closure in
   // editor editorProps which is only evaluated once on creation)
   const insertImageRef = useRef<((file: File | Blob) => Promise<void>) | null>(null);
+  const pasteLinkRef = useRef<((href: string, from: number, to: number) => boolean) | null>(null);
 
   // ---- TipTap editor ------------------------------------------------------
 
@@ -212,7 +213,7 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
     content: memory?.contentHtml ?? '',
     editorProps: {
       // Handle paste events – intercept image items and optimise them
-      handlePaste(_view, event) {
+      handlePaste(view, event) {
         const items = Array.from(event.clipboardData?.items ?? []);
         const imageItem = items.find((it) => it.type.startsWith('image/'));
         if (imageItem) {
@@ -222,6 +223,16 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
             return true; // Prevent default paste (which would insert raw PNG)
           }
         }
+
+        const pasted = event.clipboardData?.getData('text/plain')?.trim() ?? '';
+        const { from, to, empty } = view.state.selection;
+        if (!empty && pasted && !/\s/.test(pasted)) {
+          const href = normaliseLinkUrl(pasted);
+          if (isSafeHref(href) && pasteLinkRef.current?.(href, from, to)) {
+            return true;
+          }
+        }
+
         // HTML (including <a> tags) falls through to TipTap's schema paste.
         return false;
       },
@@ -258,6 +269,8 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
         setError(String(err));
       }
     };
+    pasteLinkRef.current = (href, from, to) =>
+      editor.chain().focus().setTextSelection({ from, to }).setLink({ href }).run();
   }, [editor]);
 
   const captureLinkSelection = useCallback(() => {
