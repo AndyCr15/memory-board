@@ -503,60 +503,70 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
             Sticky chrome – title, pin, save/close + formatting toolbar
             ================================================================ */}
         <div className="sticky top-0 z-20 border-b border-gray-200 bg-white">
-          <div data-theme={colorTheme} className="theme-chrome flex items-center gap-3 px-5 py-3">
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Memory title…"
-              autoFocus
-              className="theme-header-title flex-1 text-lg font-semibold bg-transparent placeholder:text-current placeholder:opacity-50 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => setIsPinned((prev) => !prev)}
-              className={`theme-header-fg px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                isPinned
-                  ? 'bg-yellow-100 border-yellow-300 text-yellow-800'
-                  : 'border-current/30 bg-white/10 hover:bg-white/20'
-              }`}
-              title={isPinned ? 'Unpin memory' : 'Pin memory'}
-            >
-              📌 {isPinned ? 'Pinned' : 'Pin'}
-            </button>
-            <div
-              className="flex items-center gap-1.5 shrink-0"
-              role="group"
-              aria-label="Card theme"
-            >
-              {MEMORY_THEME_OPTIONS.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  data-theme={option}
-                  title={THEME_CLASSES[option].label}
-                  aria-pressed={colorTheme === option}
-                  onClick={() => setColorTheme(option)}
-                  className={`theme-swatch ${colorTheme === option ? 'is-selected' : ''}`}
-                />
-              ))}
+          <div data-theme={colorTheme} className="theme-chrome px-4 py-3 sm:px-5">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Memory title…"
+                autoFocus
+                className="theme-header-title min-w-0 flex-1 text-lg font-semibold bg-transparent placeholder:text-current placeholder:opacity-50 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="shrink-0 px-3 py-1.5 text-sm font-semibold bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300 text-white rounded-lg shadow-sm transition-colors"
+              >
+                {isSaving ? 'Saving…' : (
+                  <>
+                    <span className="sm:hidden">Save</span>
+                    <span className="hidden sm:inline">💾 Save Memory</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="theme-header-fg shrink-0 w-8 h-8 text-2xl leading-none transition-colors hover:opacity-70"
+                title="Close (Esc)"
+                aria-label="Close modal"
+              >
+                ×
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving}
-              className="px-4 py-1.5 text-sm font-semibold bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300 text-white rounded-lg shadow-sm transition-colors"
-            >
-              {isSaving ? 'Saving…' : '💾 Save Memory'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="theme-header-fg text-2xl leading-none transition-colors hover:opacity-70"
-              title="Close (Esc)"
-            >
-              ×
-            </button>
+            <div className="mt-2 flex items-center gap-2 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setIsPinned((prev) => !prev)}
+                className={`theme-header-fg shrink-0 px-2.5 py-1 text-sm rounded-lg border transition-colors ${
+                  isPinned
+                    ? 'bg-yellow-100 border-yellow-300 text-yellow-800'
+                    : 'border-current/30 bg-white/10 hover:bg-white/20'
+                }`}
+                title={isPinned ? 'Unpin memory' : 'Pin memory'}
+              >
+                📌 {isPinned ? 'Pinned' : 'Pin'}
+              </button>
+              <div
+                className="flex items-center gap-1.5 shrink-0"
+                role="group"
+                aria-label="Card theme"
+              >
+                {MEMORY_THEME_OPTIONS.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    data-theme={option}
+                    title={THEME_CLASSES[option].label}
+                    aria-pressed={colorTheme === option}
+                    onClick={() => setColorTheme(option)}
+                    className={`theme-swatch ${colorTheme === option ? 'is-selected' : ''}`}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-0.5 px-4 py-2 bg-gray-50">
