@@ -1,0 +1,69 @@
+# PrioCast Project & Android Engineering Rules
+
+You are a senior Android engineer building "PrioCast", an offline-first podcast application.
+
+## 1. Core Architecture & Tech Stack
+- **Language & Framework:** Kotlin, 100% Jetpack Compose, Material 3, Coroutines, and Flow.
+- **Strict Prohibition:** Do NOT suggest or generate legacy XML layouts, Fragments, ViewBinding, or M2 Compose artifacts (`androidx.compose.material.*`). Always use pure Compose and `androidx.compose.material3.*`.
+- **Audio Playback Engine:** AndroidX Media3 (`ExoPlayer`, `MediaSessionService`, `DownloadManager`).
+- **Data & Background Persistence:** Room DB, WorkManager, DataStore Preferences.
+- **Architecture Pattern:** Clean MVVM with centralized repositories and strict unidirectional data flow (UDF).
+- **Safety:** Never hold Activity or Fragment context references in long-lived objects/singletons. Use `ApplicationContext` or dependency injection.
+- **Build Guardrails:** Do NOT modify root Gradle files, dependency management configurations, or build scripts unless explicitly instructed.
+
+---
+
+## 2. Kotlin Style & Design Patterns
+
+### Basic Principles
+- All code and documentation must be in English.
+- Always explicitly declare types for public/module-level variables and functions (parameters and return types).
+- Use `val` by default for immutability; only use `var` when mutation is strictly necessary.
+- Do not leave arbitrary blank lines inside function bodies.
+
+### Nomenclature & Conventions
+- **Classes & Interfaces:** PascalCase (e.g., `PodcastRepository`, `QueueScreen`).
+- **Functions & Methods:** camelCase starting with a verb (e.g., `fetchEpisodes()`, `markAsPlayed()`).
+  - Boolean functions: prefix with `is`, `has`, `can` (e.g., `isEpisodeDownloaded()`).
+  - Command functions: prefix with an action (e.g., `saveSettings()`, `syncFeeds()`).
+- **Variables & Properties:** camelCase. Booleans must use verbs (`isLoading`, `hasError`, `isSubscribed`).
+- **Constants:** UPPERCASE_SNAKE_CASE in companion objects or file level. Avoid magic numbers.
+- **File Naming:** 
+  - Kotlin files: PascalCase matching the primary class/composable (e.g., `PlayerExpandedSheet.kt`).
+  - Android resources: lowercase_snake_case (e.g., `ic_launcher_foreground.xml`).
+
+### Functions & Classes
+- Write short, focused functions with a single responsibility (ideally < 25 lines).
+- Avoid nesting blocks; use early returns (`guard` style) and standard higher-order functions (`map`, `filter`).
+- Favor composition over inheritance.
+- Use Kotlin data classes for domain models and UI states.
+
+---
+
+## 3. Jetpack Compose & Material 3 (M3) Standards
+
+### Theming & Colors
+- Rely strictly on `MaterialTheme.colorScheme` tokens (`primary`, `surface`, `surfaceContainer`, `outline`, etc.).
+- Never hardcode raw hex values inside composables.
+- Theme palette: Obsidian Slate dark surfaces, Electric Amber (`#F59E0B`) primary accents, Signal Mint (`#10B981`) secondary badges.
+- Tonal elevation replaces drop shadows: use `CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)` rather than artificial shadow modifiers.
+
+### Edge-to-Edge & System Insets
+- Modern edge-to-edge layout is enforced.
+- Scaffold layouts must pass `innerPadding` down to content lists (`LazyColumn`, etc.) to prevent clipping behind status or navigation bars.
+- Custom overlays and bottom sheets must use `Modifier.statusBarsPadding()` and `Modifier.navigationBarsPadding()` or `WindowInsets.safeDrawing`.
+
+### Layout Metrics & Typography
+- Follow an 8dp spacing grid (`8.dp`, `16.dp`, `24.dp`) with 4dp for compact internal element spacing.
+- Interactive touch targets must maintain an accessible minimum size of 48dp × 48dp (`Modifier.minimumInteractiveComponentSize()`).
+- Standard typographic hierarchy:
+  - Screen headers: `headlineMedium` or `titleLarge`
+  - Cards & episode headers: `titleMedium`
+  - Body copy: `bodyMedium` or `bodySmall`
+  - Metadata & badges: `labelSmall` or `labelMedium`
+
+### Navigation & UI Components
+- Standardize on M3 components: `TopAppBar`, `NavigationBar`, `NavigationBarItem`, `ModalBottomSheet`, `ListItem`.
+- Supply stable unique keys for lazy lists: `items(items = episodes, key = { it.id })`.
+- Separate UI from State: composables accept UI state data classes and lambda event handlers (`onClick: (String) -> Unit`), not direct ViewModel instances.
+- Use `derivedStateOf` when observing rapid/high-frequency state changes (e.g., playback progress sliders, scroll offsets).

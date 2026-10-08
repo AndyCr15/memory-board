@@ -277,64 +277,56 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
         {/* ================================================================
             Header – pastel-themed, sticky
             ================================================================ */}
-        <div className={`theme-chrome px-6 py-4 border-b border-black/10 sticky top-0 z-20`}>
-          <div className="flex items-start gap-3">
-
-            {/* Title + tags + timestamps */}
-            <div className="flex-1 min-w-0">
-              {/* Title row */}
-              <div className="flex items-center gap-2">
-                {memory.isPinned && (
-                  <span className="text-yellow-500 text-base" title="Pinned to top">
-                    📌
-                  </span>
-                )}
-                <h2 className="theme-header-title text-xl font-bold leading-snug">
-                  {memory.title || (
-                    <em className="text-gray-400 font-normal">Untitled</em>
-                  )}
-                </h2>
-              </div>
-
-              {/* Tag chips */}
-              {memory.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {memory.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="theme-header-fg px-2.5 py-0.5 bg-white/15 rounded-full text-xs font-medium border border-current/20"
-                    >
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
+        <div className="theme-chrome px-4 py-3 sm:px-6 border-b border-black/10 sticky top-0 z-20">
+          <div className="flex items-start gap-2">
+            {memory.isPinned && (
+              <span className="text-yellow-500 text-base leading-snug shrink-0" title="Pinned to top">
+                📌
+              </span>
+            )}
+            <h2 className="theme-header-title flex-1 min-w-0 text-xl font-bold leading-snug">
+              {memory.title || (
+                <em className="text-gray-400 font-normal">Untitled</em>
               )}
-
-              {/* Timestamps – UK DD/MM/YYYY HH:mm */}
-              <div className="theme-header-fg mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-xs opacity-80">
-                <span>Created: {formatUKDateTime(memory.createdAt)}</span>
-                <span>Updated: {formatUKDateTime(memory.updatedAt)}</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
+            </h2>
+            <div className="flex items-center gap-0.5 shrink-0 -mt-0.5">
               <button
                 type="button"
                 onClick={handleEdit}
-                className="px-4 py-1.5 text-sm font-semibold bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg shadow-sm transition-colors"
+                className="w-8 h-8 flex items-center justify-center text-base leading-none rounded-lg hover:bg-black/10 transition-colors"
+                title="Edit memory"
+                aria-label="Edit memory"
               >
-                ✏️ Edit Memory
+                ✏️
               </button>
               <button
                 type="button"
                 onClick={handleClose}
-                className="theme-header-fg text-2xl leading-none transition-colors hover:opacity-70"
+                className="theme-header-fg w-8 h-8 flex items-center justify-center text-2xl leading-none rounded-lg hover:bg-black/10 transition-colors"
                 title="Close (Esc)"
                 aria-label="Close modal"
               >
                 ×
               </button>
             </div>
+          </div>
+
+          {memory.tags.length > 0 && (
+            <div className="mt-2 flex flex-nowrap gap-1.5 overflow-x-auto">
+              {memory.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="theme-header-fg shrink-0 px-2.5 py-0.5 bg-white/15 rounded-full text-xs font-medium border border-current/20"
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="theme-header-fg mt-1.5 flex flex-nowrap items-center gap-x-4 overflow-x-auto text-xs opacity-80 whitespace-nowrap">
+            <span>Created: {formatUKDateTime(memory.createdAt)}</span>
+            <span>Updated: {formatUKDateTime(memory.updatedAt)}</span>
           </div>
         </div>
 
