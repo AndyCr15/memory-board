@@ -536,7 +536,7 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
                 ×
               </button>
             </div>
-            <div className="mt-2 flex items-center gap-2 overflow-x-auto">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setIsPinned((prev) => !prev)}
@@ -550,7 +550,7 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
                 📌 {isPinned ? 'Pinned' : 'Pin'}
               </button>
               <div
-                className="flex items-center gap-1.5 shrink-0"
+                className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 py-0.5"
                 role="group"
                 aria-label="Card theme"
               >
@@ -560,6 +560,7 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
                     type="button"
                     data-theme={option}
                     title={THEME_CLASSES[option].label}
+                    aria-label={THEME_CLASSES[option].label}
                     aria-pressed={colorTheme === option}
                     onClick={() => setColorTheme(option)}
                     className={`theme-swatch ${colorTheme === option ? 'is-selected' : ''}`}

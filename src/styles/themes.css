@@ -33,6 +33,14 @@
   --theme-link-hover: #fda4af;
 }
 
+[data-theme='cycling'] {
+  --theme-header-fg: #111827;
+  --theme-header-title: #111827;
+  --theme-header-bg: #f4f7ef;
+  --theme-link: #0369a1;
+  --theme-link-hover: #075985;
+}
+
 [data-theme='blueprint'] {
   --theme-header-fg: #f8fafc;
   --theme-header-title: #ffffff;
@@ -319,15 +327,81 @@
 }
 
 /* ---------------------------------------------------------------------------
+   cycling – hi-vis kit on a marked lane
+   --------------------------------------------------------------------------- */
+.memory-card[data-theme='cycling'],
+.theme-swatch[data-theme='cycling'] {
+  background-color: #f4f7ef;
+  background-image:
+    linear-gradient(#111827, #111827),
+    linear-gradient(#d6ff3f, #d6ff3f);
+  background-size: 6px 100%, 7px 100%;
+  background-position: 0 0, 6px 0;
+  background-repeat: no-repeat;
+  color: #111827;
+  border: 1px solid #111827;
+  border-radius: 12px 12px 3px 3px;
+  box-shadow: 3px 4px 0 #111827;
+  font-family: 'Arial Narrow', 'Segoe UI', system-ui, sans-serif;
+}
+
+.memory-card[data-theme='cycling'] {
+  padding-bottom: 1.7rem;
+}
+
+.memory-card[data-theme='cycling']::after {
+  content: '';
+  position: absolute;
+  left: 1.1rem;
+  right: 1.1rem;
+  bottom: 0.5rem;
+  height: 6px;
+  border-radius: 999px;
+  background-color: #4b5563;
+  background-image: repeating-linear-gradient(
+    90deg,
+    #ffffff 0 7px,
+    transparent 7px 13px
+  );
+  pointer-events: none;
+}
+
+.memory-card[data-theme='cycling'] .memory-card-title {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.memory-card[data-theme='cycling'] .memory-card-body,
+.memory-card[data-theme='cycling'] .memory-card-meta {
+  color: #1f2937;
+}
+
+.memory-card[data-theme='cycling'] .memory-card-tag {
+  background: #111827;
+  color: #d6ff3f;
+  border: none;
+  border-radius: 2px;
+  font-weight: 700;
+  font-family: inherit;
+}
+
+/* ---------------------------------------------------------------------------
    Theme picker swatches (editor header)
    --------------------------------------------------------------------------- */
 .theme-swatch {
-  width: 2.15rem;
-  height: 1.55rem;
+  width: 1.7rem;
+  height: 1.3rem;
   padding: 0;
   cursor: pointer;
   flex-shrink: 0;
   box-sizing: border-box;
+}
+
+@media (min-width: 640px) {
+  .theme-swatch {
+    width: 2.15rem;
+    height: 1.55rem;
+  }
 }
 
 .theme-swatch.is-selected {

@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryEditorModal } from './MemoryEditorModal';
 import { isViableDraft } from '../editor/editorConfig';
+import { MEMORY_THEME_OPTIONS, THEME_CLASSES } from '../types/memory';
 
 vi.mock('../services/apiService', () => ({
   MAX_ATTACHMENT_BYTES: 1_048_576,
@@ -80,5 +81,14 @@ describe('MemoryEditorModal backdrop click', () => {
       expect(onClose).toHaveBeenCalledTimes(1);
     });
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('offers every theme, including cycling, for a new memory', async () => {
+    renderEditor();
+    await screen.findByPlaceholderText('Memory title…');
+
+    for (const theme of MEMORY_THEME_OPTIONS) {
+      expect(screen.getByRole('button', { name: THEME_CLASSES[theme].label })).toBeTruthy();
+    }
   });
 });

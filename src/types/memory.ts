@@ -24,7 +24,8 @@ export type MemoryTheme =
   | 'blueprint'
   | 'terminal'
   | 'supermarket'
-  | 'storefront';
+  | 'storefront'
+  | 'cycling';
 
 /**
  * Historical alias.  Stored `colorTheme` values may still be a MemoryTheme
@@ -68,6 +69,7 @@ export const MEMORY_THEME_OPTIONS: MemoryTheme[] = [
   'terminal',
   'supermarket',
   'storefront',
+  'cycling',
 ];
 
 /** Ordered list of colour themes for UI iteration. */
@@ -147,5 +149,11 @@ export const THEME_CLASSES: Record<MemoryTheme, ThemeClasses> = {
     accent: 'bg-[#16122b]',
     swatch: 'theme-swatch',
     label: '🛍️ Online shop',
+  },
+  cycling: {
+    card: 'memory-card',
+    accent: 'bg-[#f4f7ef]',
+    swatch: 'theme-swatch',
+    label: '🚴 Cycling',
   },
 };
