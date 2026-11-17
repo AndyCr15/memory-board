@@ -557,8 +557,20 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
               >
                 📌 {isPinned ? 'Pinned' : 'Pin'}
               </button>
+              <select
+                className="theme-header-fg sm:hidden min-w-0 flex-1 rounded-lg border border-current/30 bg-white/80 px-2 py-1 text-sm"
+                aria-label="Choose card theme"
+                value={colorTheme}
+                onChange={(event) => setColorTheme(resolveMemoryTheme(event.target.value))}
+              >
+                {MEMORY_THEME_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {THEME_CLASSES[option].label}
+                  </option>
+                ))}
+              </select>
               <div
-                className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 py-0.5"
+                className="hidden sm:flex min-w-0 flex-1 flex-wrap items-center gap-1.5 py-0.5"
                 role="group"
                 aria-label="Card theme"
               >

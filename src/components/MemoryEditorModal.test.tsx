@@ -127,6 +127,13 @@ describe('MemoryEditorModal backdrop click', () => {
     expect(screen.queryByRole('button', { name: 'Remove tag coffee' })).toBeNull();
   });
 
+  it('offers the new themes in the small-screen dropdown', async () => {
+    renderEditor();
+    const picker = await screen.findByRole('combobox', { name: 'Choose card theme' });
+    expect(picker).toHaveTextContent('🌿 Health and wellbeing');
+    expect(picker).toHaveTextContent('💷 Financial');
+  });
+
   it('offers every theme, including cycling, for a new memory', async () => {
     renderEditor();
     await screen.findByPlaceholderText('Memory title…');
