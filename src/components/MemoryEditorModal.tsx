@@ -120,6 +120,11 @@ interface MemoryEditorModalProps {
   nextOrderIndex: number;
   /** Existing tags across all memories (for datalist suggestions). */
   existingTags: string[];
+  /**
+   * Tags to pre-fill when creating a memory (the board's active filters).
+   * Ignored while editing an existing memory.
+   */
+  initialTags?: string[];
   onSave: (memory: Memory) => Promise<void>;
   onClose: () => void;
 }
@@ -168,13 +173,16 @@ export const MemoryEditorModal: React.FC<MemoryEditorModalProps> = ({
   memory,
   nextOrderIndex,
   existingTags,
+  initialTags,
   onSave,
   onClose,
 }) => {
   // ---- Local form state ---------------------------------------------------
 
   const [title, setTitle] = useState(memory?.title ?? '');
-  const [tags, setTags] = useState<string[]>(memory?.tags ?? []);
+  const [tags, setTags] = useState<string[]>(
+    memory ? [...memory.tags] : [...(initialTags ?? [])],
+  );
   const [tagInput, setTagInput] = useState('');
   const [colorTheme, setColorTheme] = useState<ColorTheme>(
     resolveMemoryTheme(memory?.colorTheme ?? DEFAULT_COLOR_THEME),

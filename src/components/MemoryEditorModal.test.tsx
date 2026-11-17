@@ -83,6 +83,50 @@ describe('MemoryEditorModal backdrop click', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it('starts a new memory with the board filter tags', async () => {
+    render(
+      <MemoryEditorModal
+        memory={null}
+        nextOrderIndex={0}
+        existingTags={['coffee', 'clean']}
+        initialTags={['coffee', 'clean']}
+        onSave={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByRole('button', { name: 'Remove tag coffee' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Remove tag clean' })).toBeTruthy();
+  });
+
+  it('keeps an existing memory’s tags when filters are also selected', async () => {
+    render(
+      <MemoryEditorModal
+        memory={{
+          id: 'mem-1',
+          title: 'Descaling',
+          contentHtml: '<p>Steps</p>',
+          contentText: 'Steps',
+          tags: ['delonghi'],
+          colorTheme: 'note-paper',
+          isPinned: false,
+          orderIndex: 0,
+          attachments: [],
+          createdAt: 1,
+          updatedAt: 1,
+        }}
+        nextOrderIndex={1}
+        existingTags={['delonghi', 'coffee']}
+        initialTags={['coffee']}
+        onSave={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByRole('button', { name: 'Remove tag delonghi' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Remove tag coffee' })).toBeNull();
+  });
+
   it('offers every theme, including cycling, for a new memory', async () => {
     renderEditor();
     await screen.findByPlaceholderText('Memory title…');

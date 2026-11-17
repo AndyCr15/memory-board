@@ -156,7 +156,7 @@ export const parseImportDocument = (text: string): ExportDocument => {
 };
 
 export const exportBackup = async (): Promise<void> => {
-  const memories = await database.getMemories();
+  const memories = (await database.getMemories()).filter((memory) => memory.deletedAt == null);
   const document = buildExportDocument(memories);
   const json = JSON.stringify(document, null, 2);
   const blob = new Blob([json], { type: 'application/json;charset=utf-8' });

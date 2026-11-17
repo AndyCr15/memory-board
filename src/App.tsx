@@ -21,7 +21,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Board, filterMemories, sortMemories } from './components/Board';
 import { FilterBar } from './components/FilterBar';
+import { SettingsMenu } from './components/SettingsMenu';
+import { EditTagsModal } from './components/EditTagsModal';
 import { MemoryEditorModal } from './components/MemoryEditorModal';
+import { TrashView } from './components/TrashView';
 import { MemoryDetailModal } from './components/MemoryDetailModal';
 import { updateMemoryOrder } from './services/database';
 import { apiService } from './services/apiService';
@@ -45,6 +48,9 @@ const App: React.FC = () => {
   const [sortMode, setSortMode] = useState<SortMode>('custom');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTagFilters, setActiveTagFilters] = useState<string[]>([]);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trash, setTrash] = useState<Memory[]>([]);
+  const [editTagsOpen, setEditTagsOpen] = useState(false);
   const [sessionUsername, setSessionUsername] = useState<string | null>(
     apiService.currentUsername,
   );
@@ -55,9 +61,15 @@ const App: React.FC = () => {
     try {
       setIsLoading(true);
       const loaded = await apiService.getMemories();
-      setMemories(loaded);
+      setMemories(loaded.filter((memory) => memory.deletedAt == null));
+      try {
+        setTrash(await apiService.getTrash());
+      } catch (trashError) {
+        console.warn('Unable to load Trash', trashError);
+      }
     } catch (err) {
-      setGlobalError(`Failed to load memories: ${String(err)}`);
+      const message = err instanceof Error ? err.message : String(err);
+      setGlobalError(`Failed to load memories: ${message}`);
     } finally {
       setIsLoading(false);
     }
@@ -73,6 +85,8 @@ const App: React.FC = () => {
       setSessionUsername(name);
       if (!name) {
         setMemories([]);
+        setTrash([]);
+        setTrashOpen(false);
         setDetailMemory(null);
         setEditorOpen(false);
         setEditingMemory(null);
@@ -96,7 +110,16 @@ const App: React.FC = () => {
   );
 
   const handleDeleteMemory = useCallback((id: string) => {
-    setMemories((prev) => prev.filter((m) => m.id !== id));
+    setMemories((prev) => {
+      const removed = prev.find((memory) => memory.id === id);
+      if (removed) {
+        setTrash((current) => [
+          { ...removed, deletedAt: Date.now() },
+          ...current.filter((memory) => memory.id !== id),
+        ]);
+      }
+      return prev.filter((memory) => memory.id !== id);
+    });
     setDetailMemory((current) => (current?.id === id ? null : current));
   }, []);
 
@@ -215,20 +238,22 @@ const App: React.FC = () => {
           {/* Session + new memory */}
           <div className="flex items-center gap-3">
             {sessionUsername && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600 hidden sm:inline">
-                  Signed in as <strong className="font-semibold text-gray-800">{sessionUsername}</strong>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => { void apiService.logout(); }}
-                  className="text-sm font-medium text-gray-500 hover:text-gray-800 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                  aria-label={`Log out ${sessionUsername}`}
-                >
-                  Log Out
-                </button>
-              </div>
+              <span className="text-sm text-gray-600 hidden sm:inline">
+                Signed in as <strong className="font-semibold text-gray-800">{sessionUsername}</strong>
+              </span>
             )}
+            <button
+              type="button"
+              onClick={() => setTrashOpen((open) => !open)}
+              className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                trashOpen
+                  ? 'bg-gray-800 text-white'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+              aria-pressed={trashOpen}
+            >
+              Trash{trash.length > 0 ? ` (${trash.length})` : ''}
+            </button>
             <button
               onClick={() => openEditorFor()}
               className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm text-sm"
@@ -236,6 +261,12 @@ const App: React.FC = () => {
               <span className="text-base leading-none">+</span>
               New Memory
             </button>
+            <SettingsMenu
+              onImport={(file) => { void handleImport(file); }}
+              onExport={() => { void handleExport(); }}
+              onEditTags={() => setEditTagsOpen(true)}
+              onLogout={() => { void apiService.logout(); }}
+            />
           </div>
         </div>
       </header>
@@ -258,6 +289,50 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {trashOpen ? (
+          <TrashView
+            memories={trash}
+            onClose={() => setTrashOpen(false)}
+            onRestore={(memory) => {
+              void (async () => {
+                try {
+                  await apiService.restoreMemory(memory.id);
+                  setTrash((current) => current.filter((item) => item.id !== memory.id));
+                  await loadMemories();
+                } catch (err) {
+                  const message = err instanceof Error ? err.message : String(err);
+                  setGlobalError(`Restore failed: ${message}`);
+                }
+              })();
+            }}
+            onDeletePermanent={(memory) => {
+              const name = memory.title || 'this memory';
+              if (!window.confirm(`Delete "${name}" permanently? This cannot be undone.`)) return;
+              void (async () => {
+                try {
+                  await apiService.permanentlyDeleteMemory(memory.id);
+                  setTrash((current) => current.filter((item) => item.id !== memory.id));
+                } catch (err) {
+                  const message = err instanceof Error ? err.message : String(err);
+                  setGlobalError(`Delete failed: ${message}`);
+                }
+              })();
+            }}
+            onEmpty={() => {
+              if (!window.confirm('Empty Trash? Every memory in Trash will be permanently deleted.')) return;
+              void (async () => {
+                try {
+                  await apiService.emptyTrash();
+                  setTrash([]);
+                } catch (err) {
+                  const message = err instanceof Error ? err.message : String(err);
+                  setGlobalError(`Empty Trash failed: ${message}`);
+                }
+              })();
+            }}
+          />
+        ) : (
+        <>
         {/* Filter controls */}
         <FilterBar
           sortMode={sortMode}
@@ -267,8 +342,6 @@ const App: React.FC = () => {
           allTags={allTags}
           activeTagFilters={activeTagFilters}
           onTagFilterChange={setActiveTagFilters}
-          onExport={handleExport}
-          onImport={handleImport}
           totalCount={memories.length}
           filteredCount={filteredCount}
         />
@@ -293,6 +366,8 @@ const App: React.FC = () => {
             onSortChange={setSortMode}
           />
         )}
+        </>
+        )}
       </main>
 
       {/* ------------------------------------------------------------------ */}
@@ -309,11 +384,24 @@ const App: React.FC = () => {
       {/* ------------------------------------------------------------------ */}
       {/* Editor modal – create / update                                      */}
       {/* ------------------------------------------------------------------ */}
+      {editTagsOpen && (
+        <EditTagsModal
+          tags={allTags}
+          onClose={() => setEditTagsOpen(false)}
+          onRename={async (from, to) => {
+            await apiService.renameTag(from, to);
+            setActiveTagFilters((current) => [...new Set(current.map((tag) => (tag === from ? to : tag)))]);
+            await loadMemories();
+          }}
+        />
+      )}
+
       {editorOpen && (
         <MemoryEditorModal
           memory={editingMemory}
           nextOrderIndex={memories.length}
           existingTags={allTags}
+          initialTags={activeTagFilters}
           onSave={handleSaveMemory}
           onClose={() => {
             setEditorOpen(false);

@@ -127,8 +127,20 @@ function initializeDatabaseSchema(PDO $pdo): void {
             orderIndex INT DEFAULT 0,
             createdAt BIGINT NOT NULL,
             updatedAt BIGINT NOT NULL,
+            deletedAt BIGINT NULL,
             FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
             INDEX idx_user_memories (userId, isPinned, updatedAt)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
+
+    // Existing installs created the table before Trash existed. A failure
+    // here must not prevent login; listing memories is the only caller.
+    try {
+        $column = $pdo->query("SHOW COLUMNS FROM memories LIKE 'deletedAt'");
+        if ($column === false || $column->fetch() === false) {
+            $pdo->exec('ALTER TABLE memories ADD COLUMN deletedAt BIGINT NULL');
+        }
+    } catch (Throwable $e) {
+        // Leave the connection usable.
+    }
 }

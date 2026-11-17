@@ -4,11 +4,10 @@
 // Sticky controls bar rendered above the board grid. Contains:
 //   • Full-text search input (real-time)
 //   • Sort-mode dropdown (delegates switch to 'custom' automatically after drag)
-//   • Export / Import buttons (JSON backup, merge into current tenant)
 //   • Tag filter chip cloud (multi-select; all chips active = no filter)
 // =============================================================================
 
-import React, { useRef } from 'react';
+import React from 'react';
 import type { SortMode } from '../types/memory';
 
 interface FilterBarProps {
@@ -19,8 +18,6 @@ interface FilterBarProps {
   allTags: string[];
   activeTagFilters: string[];
   onTagFilterChange: (tags: string[]) => void;
-  onExport: () => void;
-  onImport: (file: File) => void;
   totalCount: number;
   filteredCount: number;
 }
@@ -33,14 +30,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   allTags,
   activeTagFilters,
   onTagFilterChange,
-  onExport,
-  onImport,
   totalCount,
   filteredCount,
 }) => {
-  // Hidden file input for the import flow
-  const importInputRef = useRef<HTMLInputElement>(null);
-
   const toggleTag = (tag: string) => {
     if (activeTagFilters.includes(tag)) {
       onTagFilterChange(activeTagFilters.filter((t) => t !== tag));
@@ -49,21 +41,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     }
   };
 
-  const handleImportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onImport(file);
-      // Reset so the same file can be selected again later
-      e.target.value = '';
-    }
-  };
-
   const isFiltered =
     searchQuery.trim() !== '' || activeTagFilters.length > 0;
 
   return (
     <div className="mb-6 space-y-3">
-      {/* ---- Row 1: search + sort + export/import ------------------------- */}
+      {/* ---- Row 1: search + sort ------------------------------------------ */}
       <div className="flex flex-wrap gap-2 items-center">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
@@ -100,31 +83,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           <option value="updated-desc">✏️ Recently updated</option>
           <option value="alpha-asc">🔤 A → Z</option>
         </select>
-
-        {/* Export */}
-        <button
-          onClick={onExport}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white hover:bg-gray-50 shadow-sm transition"
-          title="Export this account's memories as JSON"
-        >
-          ⬇ Export
-        </button>
-
-        {/* Import */}
-        <button
-          onClick={() => importInputRef.current?.click()}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white hover:bg-gray-50 shadow-sm transition"
-          title="Merge memories from a JSON backup into this account"
-        >
-          ⬆ Import
-        </button>
-        <input
-          ref={importInputRef}
-          type="file"
-          accept=".json,application/json"
-          onChange={handleImportFileChange}
-          className="hidden"
-        />
       </div>
 
       {/* ---- Row 2: tag chips + result count ------------------------------ */}

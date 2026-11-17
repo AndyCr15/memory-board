@@ -72,14 +72,15 @@ const filterMemories = (
   query: string,
   tagFilters: string[],
 ): Memory[] => {
-  let result = memories;
+  let result = memories.filter((m) => m.deletedAt == null);
 
   if (query.trim()) {
     const q = query.toLowerCase();
     result = result.filter(
       (m) =>
         m.title.toLowerCase().includes(q) ||
-        m.contentText.toLowerCase().includes(q),
+        m.contentText.toLowerCase().includes(q) ||
+        m.tags.some((tag) => tag.toLowerCase().includes(q)),
     );
   }
 
@@ -162,7 +163,7 @@ export const Board: React.FC<BoardProps> = ({
   const handleDelete = async (id: string) => {
     const target = memories.find((m) => m.id === id);
     const name = target?.title || 'this memory';
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    if (!window.confirm(`Move "${name}" to Trash?`)) return;
     await apiService.deleteMemory(id);
     onDelete(id);
   };

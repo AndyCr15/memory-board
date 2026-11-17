@@ -128,14 +128,72 @@ export const wipeDatabase = async (db: MemoryBoardDB): Promise<void> => {
   });
 };
 
+export const markMemoryDeleted = async (
+  db: MemoryBoardDB,
+  id: string,
+  deletedAt: number,
+): Promise<void> => {
+  await db.memories.update(id, { deletedAt });
+};
+
+export const clearMemoryDeleted = async (
+  db: MemoryBoardDB,
+  id: string,
+): Promise<void> => {
+  await db.memories.update(id, { deletedAt: null });
+};
+
+export const removeTrashedMemories = async (db: MemoryBoardDB): Promise<void> => {
+  await db.transaction('rw', db.memories, db.attachments, async () => {
+    const trashed = await db.memories.filter((row) => row.deletedAt != null).toArray();
+    for (const row of trashed) {
+      await db.memories.delete(row.id);
+      await db.attachments.where('memoryId').equals(row.id).delete();
+    }
+  });
+};
+
+/**
+ * Replace the active (not trashed) rows. Local Trash rows stay put unless
+ * the server now lists that id as active again.
+ */
 export const replaceAllInDatabase = async (
   db: MemoryBoardDB,
   memories: Memory[],
 ): Promise<void> => {
-  await wipeDatabase(db);
-  for (const memory of memories) {
-    await writeMemory(db, memory);
-  }
+  await db.transaction('rw', db.memories, db.attachments, async () => {
+    const existing = await db.memories.toArray();
+    const incomingIds = new Set(memories.map((memory) => memory.id));
+    for (const row of existing) {
+      if (row.deletedAt != null && !incomingIds.has(row.id)) continue;
+      await db.memories.delete(row.id);
+      await db.attachments.where('memoryId').equals(row.id).delete();
+    }
+    for (const memory of memories) {
+      await upsertMemoryRecords(db, { ...memory, deletedAt: null });
+    }
+  });
+};
+
+/** Replace only Trash rows, leaving the active board cache untouched. */
+export const replaceTrashedInDatabase = async (
+  db: MemoryBoardDB,
+  memories: Memory[],
+): Promise<void> => {
+  await db.transaction('rw', db.memories, db.attachments, async () => {
+    const existing = await db.memories.toArray();
+    for (const row of existing) {
+      if (row.deletedAt == null) continue;
+      await db.memories.delete(row.id);
+      await db.attachments.where('memoryId').equals(row.id).delete();
+    }
+    for (const memory of memories) {
+      await upsertMemoryRecords(db, {
+        ...memory,
+        deletedAt: memory.deletedAt ?? Date.now(),
+      });
+    }
+  });
 };
 
 export const DEFAULT_COLOR_THEME: ColorTheme = 'note-paper';

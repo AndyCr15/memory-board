@@ -7,6 +7,7 @@
 // uses an in-memory guest stub that always returns empty datasets.
 // =============================================================================
 
+import Dexie from 'dexie';
 import type { Memory } from '../types/memory';
 import {
   MemoryBoardDB,
@@ -16,6 +17,10 @@ import {
   writeMemoryOrder,
   wipeDatabase,
   replaceAllInDatabase,
+  replaceTrashedInDatabase,
+  markMemoryDeleted,
+  clearMemoryDeleted,
+  removeTrashedMemories,
   writeMemoriesBulk,
   tenantDatabaseName,
   DEFAULT_COLOR_THEME,
@@ -60,7 +65,14 @@ class TenantDatabase {
 
   async getAllMemories(): Promise<Memory[]> {
     if (!this.active) return [];
-    return readAllMemories(this.active);
+    const memories = await readAllMemories(this.active);
+    return memories.filter((memory) => memory.deletedAt == null);
+  }
+
+  async getTrashedMemories(): Promise<Memory[]> {
+    if (!this.active) return [];
+    const memories = await readAllMemories(this.active);
+    return memories.filter((memory) => memory.deletedAt != null);
   }
 
   /** Alias used by export/import (`database.getMemories()`). */
@@ -76,6 +88,45 @@ class TenantDatabase {
   async deleteMemory(id: string): Promise<void> {
     if (!this.active) return;
     await removeMemory(this.active, id);
+  }
+
+  async markMemoryDeleted(id: string, deletedAt: number): Promise<void> {
+    if (!this.active) return;
+    await markMemoryDeleted(this.active, id, deletedAt);
+  }
+
+  async restoreMemory(id: string): Promise<void> {
+    if (!this.active) return;
+    await clearMemoryDeleted(this.active, id);
+  }
+
+  async replaceTrashedMemories(memories: Memory[]): Promise<void> {
+    if (!this.active) return;
+    await replaceTrashedInDatabase(this.active, memories);
+  }
+
+  async deleteTrashedMemories(): Promise<void> {
+    if (!this.active) return;
+    await removeTrashedMemories(this.active);
+  }
+
+  /**
+   * Drop the open tenant database after IndexedDB reports a missing file,
+   * then open a fresh empty handle.
+   */
+  async resetBrokenCache(): Promise<void> {
+    const userId = this.tenantId;
+    const name = this.activeDatabaseName;
+    if (this.active) {
+      this.active.close();
+      this.active = null;
+    }
+    if (name) {
+      await Dexie.delete(name);
+    }
+    if (userId !== null) {
+      this.active = new MemoryBoardDB(tenantDatabaseName(userId));
+    }
   }
 
   async updateMemoryOrder(

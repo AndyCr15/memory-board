@@ -60,6 +60,8 @@ export interface Memory {
   createdAt: number;
   /** Unix timestamp (ms) */
   updatedAt: number;
+  /** Set when the memory is in Trash. Null or omitted means it is on the board. */
+  deletedAt?: number | null;
 }
 
 export const MEMORY_THEME_OPTIONS: MemoryTheme[] = [

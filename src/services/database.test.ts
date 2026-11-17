@@ -99,3 +99,32 @@ describe('database.putMemoriesBulk', () => {
     spy.mockRestore();
   });
 });
+
+describe('database trash and broken cache', () => {
+  afterEach(async () => {
+    await database.switchTenant(null);
+    await Dexie.delete(tenantDatabaseName(1));
+  });
+
+  it('keeps a trashed memory out of the board cache and out of a later replace', async () => {
+    await database.switchTenant(1);
+    await database.putMemory(memory('keep', 'On the board'));
+    await database.putMemory(memory('gone', 'In trash'));
+    await database.markMemoryDeleted('gone', 99);
+
+    expect((await database.getAllMemories()).map((item) => item.id)).toEqual(['keep']);
+    expect((await database.getTrashedMemories()).map((item) => item.id)).toEqual(['gone']);
+
+    await database.replaceAllMemories([memory('keep', 'On the board')]);
+    expect((await database.getTrashedMemories()).map((item) => item.id)).toEqual(['gone']);
+  });
+
+  it('deletes the tenant database and opens a fresh one', async () => {
+    await database.switchTenant(1);
+    await database.putMemory(memory('stale', 'Broken'));
+    await database.resetBrokenCache();
+    expect(await database.getAllMemories()).toEqual([]);
+    await database.putMemory(memory('fresh', 'After reset'));
+    expect((await database.getAllMemories()).map((item) => item.id)).toEqual(['fresh']);
+  });
+});

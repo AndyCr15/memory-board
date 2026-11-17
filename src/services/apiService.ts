@@ -253,17 +253,68 @@ class ApiService {
   }
 
   public async getMemories(): Promise<Memory[]> {
+    let remoteMemories: Memory[] | null = null;
     try {
       const res = await this.fetchWithAuth('/api/memories.php');
       if (!res.ok) {
         throw new Error(`Server returned status: ${res.status}`);
       }
-      const remoteMemories: Memory[] = await res.json();
-      await database.replaceAllMemories(remoteMemories);
-      return remoteMemories;
+      remoteMemories = (await res.json()) as Memory[];
     } catch (err) {
       console.warn('Backend unreachable; falling back to IndexedDB cache', err);
-      return database.getAllMemories();
+      try {
+        return await database.getAllMemories();
+      } catch (cacheError) {
+        if (isCorruptCacheError(cacheError)) {
+          await database.resetBrokenCache();
+          throw new Error('The local copy was reset and the server could not be reached.');
+        }
+        throw cacheError;
+      }
+    }
+
+    const loaded = remoteMemories ?? [];
+    await this.writeActiveCache(loaded);
+    return loaded.filter((memory) => memory.deletedAt == null);
+  }
+
+  public async getTrash(): Promise<Memory[]> {
+    try {
+      const res = await this.fetchWithAuth('/api/memories.php?view=trash');
+      if (!res.ok) {
+        throw new Error(`Server returned status: ${res.status}`);
+      }
+      const trashed: Memory[] = await res.json();
+      try {
+        await database.replaceTrashedMemories(trashed);
+      } catch (err) {
+        if (isCorruptCacheError(err)) {
+          await database.resetBrokenCache();
+          try {
+            await database.replaceTrashedMemories(trashed);
+          } catch {
+            // The server list is still shown.
+          }
+        }
+      }
+      return trashed;
+    } catch (err) {
+      console.warn('Backend unreachable; falling back to local Trash', err);
+      return database.getTrashedMemories();
+    }
+  }
+
+  private async writeActiveCache(memories: Memory[]): Promise<void> {
+    try {
+      await database.replaceAllMemories(memories);
+    } catch (err) {
+      if (!isCorruptCacheError(err)) return;
+      await database.resetBrokenCache();
+      try {
+        await database.replaceAllMemories(memories);
+      } catch {
+        // The server response is still returned to the board.
+      }
     }
   }
 
@@ -305,6 +356,7 @@ class ApiService {
   }
 
   public async deleteMemory(id: string): Promise<void> {
+    const deletedAt = Date.now();
     try {
       const res = await this.fetchWithAuth(
         `/api/memories.php?id=${encodeURIComponent(id)}`,
@@ -315,10 +367,56 @@ class ApiService {
         throw new Error(`Failed to delete memory on server: ${res.status}`);
       }
     } catch (err) {
-      console.warn('Unable to sync deletion to server; deleting locally', err);
+      console.warn('Unable to sync deletion to server; moving to local Trash', err);
     } finally {
-      await database.deleteMemory(id);
+      await database.markMemoryDeleted(id, deletedAt);
     }
+  }
+
+  public async restoreMemory(id: string): Promise<void> {
+    const res = await this.fetchWithAuth('/api/memories.php?action=restore', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ id }),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to restore memory: ${res.status}`);
+    }
+    await database.restoreMemory(id);
+  }
+
+  public async permanentlyDeleteMemory(id: string): Promise<void> {
+    const res = await this.fetchWithAuth(
+      `/api/memories.php?id=${encodeURIComponent(id)}&permanent=1`,
+      { method: 'DELETE' },
+    );
+    if (!res.ok) {
+      throw new Error(`Failed to permanently delete memory: ${res.status}`);
+    }
+    await database.deleteMemory(id);
+  }
+
+  public async renameTag(from: string, to: string): Promise<void> {
+    const res = await this.fetchWithAuth('/api/memories.php?action=rename-tag', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ from, to }),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to rename tag: ${res.status}`);
+    }
+  }
+
+  public async emptyTrash(): Promise<void> {
+    const res = await this.fetchWithAuth('/api/memories.php?action=empty-trash', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to empty Trash: ${res.status}`);
+    }
+    await database.deleteTrashedMemories();
   }
 
   /**
@@ -349,5 +447,20 @@ class ApiService {
     return (await res.json()) as MemoryAttachment;
   }
 }
+
+export const isCorruptCacheError = (err: unknown): boolean => {
+  const text = collectErrorText(err);
+  return /DatabaseClosedError|NotReadableError|Data lost due to missing file/i.test(text);
+};
+
+const collectErrorText = (err: unknown): string => {
+  if (!err) return '';
+  if (typeof err === 'string') return err;
+  if (err instanceof Error) {
+    const inner = (err as Error & { inner?: unknown }).inner;
+    return `${err.name} ${err.message} ${collectErrorText(inner)}`;
+  }
+  return String(err);
+};
 
 export const apiService = new ApiService();

@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiService, MAX_ATTACHMENT_BYTES } from './apiService';
+import { apiService, isCorruptCacheError, MAX_ATTACHMENT_BYTES } from './apiService';
 import { database } from './database';
 import { loginModal } from '../components/LoginModal';
 import type { Memory } from '../types/memory';
@@ -15,6 +15,12 @@ vi.mock('./database', () => ({
     putMemory: vi.fn(),
     putMemoriesBulk: vi.fn(),
     deleteMemory: vi.fn(),
+    markMemoryDeleted: vi.fn(),
+    restoreMemory: vi.fn(),
+    replaceTrashedMemories: vi.fn(),
+    getTrashedMemories: vi.fn(),
+    deleteTrashedMemories: vi.fn(),
+    resetBrokenCache: vi.fn(),
     clearLocalData: vi.fn(),
     switchTenant: vi.fn().mockResolvedValue(undefined),
   },
@@ -117,6 +123,37 @@ describe('apiService.getMemories', () => {
     expect(database.replaceAllMemories).toHaveBeenCalledWith(remote);
     expect(database.getAllMemories).not.toHaveBeenCalled();
     expect(result[0].title).toBe('Remote');
+  });
+
+  it('returns the server list when the cache write fails, and retries once after a missing file', async () => {
+    const remote = [{ ...cachedMemory, id: 'remote-1', title: 'Remote' }];
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(remote)));
+    const corrupt = new Error('AbortError NotReadableError Data lost due to missing file');
+    corrupt.name = 'DatabaseClosedError';
+    vi.mocked(database.replaceAllMemories)
+      .mockRejectedValueOnce(corrupt)
+      .mockResolvedValueOnce(undefined);
+    vi.mocked(database.resetBrokenCache).mockResolvedValue(undefined);
+
+    const result = await apiService.getMemories();
+
+    expect(database.resetBrokenCache).toHaveBeenCalledTimes(1);
+    expect(database.replaceAllMemories).toHaveBeenCalledTimes(2);
+    expect(result[0].title).toBe('Remote');
+    expect(isCorruptCacheError(corrupt)).toBe(true);
+  });
+
+  it('resets an unreadable cache when the server cannot be reached', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
+    const corrupt = new Error('NotReadableError Data lost due to missing file');
+    vi.mocked(database.getAllMemories).mockRejectedValue(corrupt);
+    vi.mocked(database.resetBrokenCache).mockResolvedValue(undefined);
+
+    await expect(apiService.getMemories()).rejects.toThrow(
+      'The local copy was reset and the server could not be reached.',
+    );
+    expect(database.resetBrokenCache).toHaveBeenCalledTimes(1);
   });
 });
 
